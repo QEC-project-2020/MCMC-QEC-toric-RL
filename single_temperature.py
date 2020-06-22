@@ -33,12 +33,14 @@ def single_temp(init_toric, p, max_iters, eps, burnin = 625, conv_criteria = 'er
             ladder[i].update_chain(1)
             nbr_errors_chain[i ,j] = np.count_nonzero(ladder[i].toric.qubit_matrix)
             if not convergence_reached[i] and j >= burnin:
-                if conv_criteria == 'error_based' and j%10 == 0:
+                if conv_criteria == 'error_based' and j%100 == 0:
                     convergence_reached[i] = conv_crit_error_based(nbr_errors_chain[i, :j], j, eps)
                     if convergence_reached[i] == 1:
                         mean_array[i] = np.average(nbr_errors_chain[i ,:j])
                         print(j, 'convergence iterations')
                         break
+            if not convergence_reached[i] and j == max_iters - 1:
+                mean_array[i] = np.average(nbr_errors_chain[i ,:j])
     #print(ground_state, 'ground state')
     return mean_array, convergence_reached, eq_array_translate
 
@@ -67,12 +69,12 @@ def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i 
     else:
         return 0
 def main1():
-    data_reader = MCMCDataReader('./training_data/data_5x5_p_0.19', 5)
+    data_reader = MCMCDataReader('./training_data/data_5x5_p_0.19', 1)
     init_toric = Toric_code(5)
-    p_error = np.linspace(0.19, 0.75, 5)
+    p_error = np.linspace(0.1, 0.75, 50)
     n = np.zeros((16, len(p_error)))
 
-    init_toric.qubit_matrix, distr = data_reader.next()
+    #init_toric.qubit_matrix, distr = data_reader.next()
 
     #init_toric.generate_random_error(0.19)
     #init_toric.qubit_matrix =np.array([[[0, 1, 0, 0, 0],[0, 0, 0, 0, 0],[0, 1, 0, 0, 0],[0, 0, 0, 0, 0],[0, 0, 1, 2, 0]],[[0, 0, 2, 0, 0],[0, 0, 0, 0, 0],[1, 1, 0, 2, 0],[0, 0, 0, 0, 0],[0, 1, 0, 2, 0]]])
@@ -98,13 +100,14 @@ def main1():
     for i in range(len(p_error)):
         #mean_array, convergence_reached, eq_array_translate = single_temp(init_toric, p = p_error[i], max_iters = 1000000, eps = 0.00001, burnin =50000, conv_criteria = 'error_based')
         #mean_array, convergence_reached, eq_array_translate = single_temp(init_toric, p = p_error[i], max_iters = 1000, eps = 0.1, burnin =1, conv_criteria = 'error_based')
-        mean_array, convergence_reached, eq_array_translate = single_temp(init_toric, p = p_error[i], max_iters = 2000000, eps = 0.00001, burnin =50000, conv_criteria = 'error_based')
+        mean_array, convergence_reached, eq_array_translate = single_temp(init_toric, p = p_error[i], max_iters = 1000000, eps = 0.0001, burnin =50000, conv_criteria = 'error_based')
         print(eq_array_translate[np.argmin(mean_array)], 'single temp')
         print(ground_state, 'ground_state')
-        print(np.argmax(distr), 'mcmc result')
-        print(convergence_reached)
+        #print(np.argmax(distr), 'mcmc result')
+        print(convergence_reached, 'convergence')
         n[:,i] = mean_array
-        plt.plot(p_error, n[i,:])
+    for j in range(16):
+        plt.plot(-np.log(p_error/3/(1-p_error)), n[j,:])
     plt.show()
 
 def main2():
@@ -119,9 +122,9 @@ def main2():
         init_toric.qubit_matrix, distr = data_reader.next()
         ground_state = define_equivalence_class(init_toric.qubit_matrix)
         print(init_toric.qubit_matrix)
-        init_toric.qubit_matrix, _ = apply_random_logical(init_toric.qubit_matrix)
-        init_toric.qubit_matrix = apply_stabilizers_uniform(init_toric.qubit_matrix)
-        mean_array, convergence_reached, eq_array_translate = single_temp(init_toric, p = p_error, max_iters = 2000000, eps = 0.00001, burnin = 100, conv_criteria = 'error_based')
+        #init_toric.qubit_matrix, _ = apply_random_logical(init_toric.qubit_matrix)
+        #init_toric.qubit_matrix = apply_stabilizers_uniform(init_toric.qubit_matrix)
+        mean_array, convergence_reached, eq_array_translate = single_temp(init_toric, p = p_error, max_iters = 2000000, eps = 0.001, burnin = 50000, conv_criteria = 'error_based')
         print(eq_array_translate[np.argmin(mean_array)], 'single temp')
         print(ground_state, 'ground_state')
         print(np.argmax(distr), 'mcmc result')
