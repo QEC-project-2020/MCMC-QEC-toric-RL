@@ -80,6 +80,20 @@ def getMCMCstats(qubit_matrix_in, size, p_error, Nc=19, steps=1000000, crit='err
                 print('class ', j, '\t\t', nbr_comb)
 
 
+def eq_classes_stats(file_path, size, rel_tol=0.05):
+    reader = MCMCDataReader(file_path, size)
+    equal_count = np.zeros(16)
+    for i in tqdm(range(reader.get_capacity())):
+        qubit_matrix, eq_distr = reader.next()
+        equal = count_equal_classes(eq_distr, rel_tol)
+        equal_count[equal] += 1
+        if equal > 1:
+            print(eq_distr)
+    
+    print(equal_count)
+    print(equal_count / sum(equal_count))
+
+
 if __name__ == '__main__':
     size = 5
     p_error = 0.15
