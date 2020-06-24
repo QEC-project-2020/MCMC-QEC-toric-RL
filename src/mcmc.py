@@ -539,14 +539,15 @@ def apply_logical_horizontal(qubit_matrix, row=int, operator=int):  # col goes f
 
 @jit(nopython=True)
 def apply_logical(qubit_matrix, operator=int, layer=int, X_pos=0, Z_pos=0):
+    # Have to make copy, else original matrix is changed
+    result_qubit_matrix = np.copy(qubit_matrix)
+
     # Operator is zero means identity, no need to keep going
     if operator == 0:
-        return qubit_matrix, 0
+        return result_qubit_matrix, 0
 
     size = qubit_matrix.shape[1]
 
-    # Have to make copy, else original matrix is changed
-    result_qubit_matrix = np.copy(qubit_matrix)
     error_count = 0
 
     # layer 0 is qubits on vertical grid lines

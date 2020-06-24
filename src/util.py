@@ -58,7 +58,10 @@ def eq_to_ops(eqs):
     # flip x2 if z2==1, flip x1 if z1==1
     mask = 0b1010
     xor = (mask & eqs) >> 1
-    return eqs ^ xor
+    ops = eqs ^ xor
+    ops2 = ops >> 2
+    ops1 = 0b0011 & ops
+    return np.array([ops1, ops2]).transpose()
 
 
 # Returns a 16-by-2 array of logical operators to apply to eq 
@@ -70,6 +73,7 @@ def eq_to_ordered_ops(eq):
     ops = ops ^ ops[eq]
 
     # Split the 4-digit binary into two logical operators (layers 1, 2)
-    ops2 = ops >> 2
-    ops1 = 0b0011 & ops
-    return np.stack((ops1, ops2), axis=1)
+    #ops2 = ops >> 2
+    #ops1 = 0b0011 & ops
+    #return np.stack((ops1, ops2), axis=1)
+    return ops
