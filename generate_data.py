@@ -6,14 +6,14 @@ import time
 import numpy as np
 import pandas as pd
 
-from src.mcmc import parallel_tempering
-from src.mcmc import MCMCDataReader
 from src.toric_model import Toric_code
+from src.mcmc import *
+from decoders import single_temp_direct_sum, single_temp
 
 
 # This function generates training data with help of the MCMC algorithm
 def generate(file_path, params, timeout,
-             max_capacity=10**4, nbr_datapoints=10**6):
+             max_capacity=10**4, nbr_datapoints=10**6, method="PTEC"):
 
     t_start = time.time()  # Initiates timing of run
 
@@ -51,11 +51,27 @@ def generate(file_path, params, timeout,
         init_toric = Toric_code(params['size'])
         init_toric.generate_random_error(params['p'])
 
+        #randomize input matrix, no trace of seed.
+        input_matrix, _ = apply_random_logical(init_toric.qubit_matrix)
+        input_matrix = apply_stabilizers_uniform(input_matrix) # fix so all uses these
+
         # Generate data for DataFrame storage  OBS now using full bincount, change this
-        df_eq_distr = parallel_tempering(init_toric, params['Nc'],
+        if method == "PTEC":
+            df_eq_distr = parallel_tempering(init_toric, params['Nc'],
                                          p=params['p'], steps=params['steps'],
                                          iters=params['iters'],
                                          conv_criteria=params['conv_criteria'])
+        elif method == "STDC":
+            df_eq_distr = single_temp_direct_sum(input_matrix,params['size'],params['p'])
+            df_eq_distr = np.array(df_eq_distr)
+        elif method == "ST":
+            df_eq_distr = single_temp(init_toric,params['p'],params['steps'], params['eps'])
+            df_eq_distr = np.array(df_eq_distr)
+        else:
+            raise ValueError('Invalid method, use "PTEC", "STDC" or "ST".')
+
+        # Generate data for DataFrame storage  OBS now using full bincount, change this
+        
 
         # Flatten initial qubit matrix to store in dataframe
         df_qubit = init_toric.qubit_matrix.reshape((-1))
@@ -127,7 +143,7 @@ if __name__ == '__main__':
     file_path = os.path.join(local_dir, 'data_' + array_id + '.xz')
 
     # Generate data
-    generate(file_path, params, timeout)
+    generate(file_path, params, timeout, method="ST")
 
     # View data file
     

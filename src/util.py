@@ -39,7 +39,7 @@ def convert_from_np_to_tensor(tensor):
 
 
 # Returns number of degenerate equivalence classes in eq_distr given a relative error tolerance rel_tol
-def count_degenerate(eq_distr, rel_tol=0.1):
+def count_eq_degenerate(eq_distr, rel_tol=0.1):
     sorted_distr = np.sort(eq_distr)[::-1]
 
     i = 0
