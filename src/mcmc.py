@@ -23,23 +23,33 @@ class Chain:
         self.p = p
         self.p_logical = 0
         self.flag = 0
+        self.factor = ((self.p / 3.0) / (1.0 - self.p))  # rename me
     # runs iters number of steps of the metroplois-hastings algorithm
+    
     def update_chain(self, iters):
-        for _ in range(iters):
-            # apply logical or stabilizer with p_logical
-            if rand.random() < self.p_logical:
-                new_matrix, qubit_errors_change = apply_random_logical(self.toric.qubit_matrix)
-            else:
+        if self.p_logical != 0:
+            for _ in range(iters):
+                # apply logical or stabilizer with p_logical
+                if rand.random() < self.p_logical:
+                    new_matrix, qubit_errors_change = apply_random_logical(self.toric.qubit_matrix)
+                else:
+                    new_matrix, qubit_errors_change = apply_random_stabilizer(self.toric.qubit_matrix)
+
+                # Avoid calculating r if possible. If self.p is 0.75 r = 1 and we accept all changes
+                # If the new qubit matrix has equal or fewer errors, r >= 1 and we also accept all changes
+                if self.p >= 0.75 or qubit_errors_change <= 0:
+                    self.toric.qubit_matrix = new_matrix
+                    continue
+                # acceptence ratio
+                if rand.random() < self.factor ** qubit_errors_change:
+                    self.toric.qubit_matrix = new_matrix
+        else:
+            for _ in range(iters):
                 new_matrix, qubit_errors_change = apply_random_stabilizer(self.toric.qubit_matrix)
 
-            # Avoid calculating r if possible. If self.p is 0.75 r = 1 and we accept all changes
-            # If the new qubit matrix has equal or fewer errors, r >= 1 and we also accept all changes
-            if self.p >= 0.75 or qubit_errors_change <= 0:
-                self.toric.qubit_matrix = new_matrix
-                continue
-            # acceptence ratio
-            if rand.random() < ((self.p / 3.0) / (1.0 - self.p)) ** qubit_errors_change:
-                self.toric.qubit_matrix = new_matrix
+                # acceptence ratio
+                if rand.random() < self.factor ** qubit_errors_change:
+                    self.toric.qubit_matrix = new_matrix
     
     # plot toric code
     def plot(self, name, eq_class=None):

@@ -57,7 +57,7 @@ def generate(file_path, params, timeout,
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
         if method == "PTEC":
-            df_eq_distr = parallel_tempering(init_toric, params['Nc'],
+            df_eq_distr, _, _ = parallel_tempering(init_toric, params['Nc'],
                                          p=params['p'], steps=params['steps'],
                                          iters=params['iters'],
                                          conv_criteria=params['conv_criteria'])

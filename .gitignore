@@ -11,3 +11,4 @@ test_hdf.py
 runs/
 output/
 data_error_based*
+test_mcmc.py
