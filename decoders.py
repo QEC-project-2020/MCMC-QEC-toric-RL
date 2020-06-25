@@ -80,25 +80,38 @@ def apply_logical_operator(qubit_matrix, number):
 # i nuläget kommer "bra eq" att bli straffade eftersom att de inte kommer få chans att generera lika många unika kedjor --bör man sätta något tak? eller bara ta med de kortaste inom varje?
 
 
-def single_temp_direct_sum(qubit_matrix, size, p, steps=20000):
+def single_temp_direct_sum(qubit_matrix, size, p, steps=20000, convcrit = 'error_based'):
+    converged = False
     init_toric = Toric_code(size)
     init_toric.qubit_matrix = qubit_matrix
     chain = Chain(size, p)  # this p needs not be the same as p, as it is used to determine how we sample N(n)
-
+    lo = 0.1
+    hi = 1-lo
     qubitlist = []
+
+    nbr_errors_chain = np.zeros((16, steps))
 
     for i in range(16):
         chain.toric.qubit_matrix = apply_logical_operator(qubit_matrix, i)  # apply different logical operator to each chain
         # We start in a state with high entropy, therefore we let mcmc "settle down" before getting samples.
-        for _ in range(int(steps*0.1)):
+        for k in range(int(steps*lo)):
             chain.update_chain(5)
-        for _ in range(int(steps*0.9)):
-            chain.update_chain(5)
-            qubitlist.append(chain.toric.qubit_matrix)
+            nbr_errors_chain[i, k] = np.count_nonzero(chain.toric.qubit_matrix)
+        for n in range(int(steps*hi)):
+            if not converged:
+                chain.update_chain(5)
+                nbr_errors_chain[i, n+int(steps*lo)] = np.count_nonzero(chain.toric.qubit_matrix)
+
+                if convcrit == 'error_based':
+                    converged = conv_crit_error_based(nbr_errors_chain[i,:n+int(steps*lo)], len(nbr_errors_chain[i,:n+int(steps*lo)]), eps = 0.0001)
+                if converged: print(n)
+                qubitlist.append(chain.toric.qubit_matrix)
+            else: break
+        converged = False
+        #print(nbr_errors_chain[i,:])
 
     # Only consider unique elements
     qubitlist = np.unique(qubitlist, axis=0)
-
     # --------Determine EC-Distrubution--------
     eqdistr = np.zeros(16)
     beta = -log((p / 3) / (1-p))
@@ -110,13 +123,30 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps=20000):
     return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
 
 
+
+
+
+
 if __name__ == '__main__':
     init_toric = Toric_code(5)
-    p_error = 0.1
-    init_toric.generate_random_error(p_error)
-    mean_array, convergence_reached, eq_array_translate = single_temp(init_toric, p = p_error, max_iters = 1000000, eps = 0.00001, burnin = 100000, conv_criteria = 'error_based')
+    p_error = 0.19
+    #init_toric.generate_random_error(p_error)
+    data_reader = MCMCDataReader('training_data/data_5x5_p_0.19', init_toric.system_size)
+    success = 0
+    iters = 100
+    for j in range(iters):
+        init_toric.qubit_matrix, distr = data_reader.next()
+        result = single_temp_direct_sum(init_toric.qubit_matrix, init_toric.system_size, p = p_error, steps=10000)
+        print(result, 'STDS')
+        print(distr, 'MCMC')
+        if np.argmax(result) == np.argmax(distr): success+=1
+        print(j)
+    print('same as MCMC for this many syndromes: ', success/iters)
+
+
+    """mean_array, convergence_reached, eq_array_translate = single_temp(init_toric, p = p_error, max_iters = 1000000, eps = 0.00001, burnin = 100000, conv_criteria = 'error_based')
     print(eq_array_translate[np.argmin(mean_array)], 'guess')
-    print(convergence_reached)
+    print(convergence_reached)"""
     '''init_toric = Toric_code(5)
     p_error = 0.15
     init_toric.generate_random_error(p_error)
