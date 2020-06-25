@@ -85,40 +85,28 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps=20000, convcrit = 'error
     init_toric = Toric_code(size)
     init_toric.qubit_matrix = qubit_matrix
     chain = Chain(size, p)  # this p needs not be the same as p, as it is used to determine how we sample N(n)
-    lo = 0.1
-    hi = 1-lo
-    qubitlist = []
+
+    qubitlist = [{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}]
 
     nbr_errors_chain = np.zeros((16, steps))
 
     for i in range(16):
         chain.toric.qubit_matrix = apply_logical_operator(qubit_matrix, i)  # apply different logical operator to each chain
         # We start in a state with high entropy, therefore we let mcmc "settle down" before getting samples.
-        for k in range(int(steps*lo)):
+        current_class = define_equivalence_class(chain.toric.qubit_matrix)
+        for _ in range(int(steps*0.8)):
             chain.update_chain(5)
-            nbr_errors_chain[i, k] = np.count_nonzero(chain.toric.qubit_matrix)
-        for n in range(int(steps*hi)):
-            if not converged:
-                chain.update_chain(5)
-                nbr_errors_chain[i, n+int(steps*lo)] = np.count_nonzero(chain.toric.qubit_matrix)
+        for _ in range(int(steps*0.2)):
+            chain.update_chain(5)
+            qubitlist[current_class][chain.toric.qubit_matrix.tostring()] = np.count_nonzero(chain.toric.qubit_matrix)
 
-                if convcrit == 'error_based':
-                    converged = conv_crit_error_based(nbr_errors_chain[i,:n+int(steps*lo)], len(nbr_errors_chain[i,:n+int(steps*lo)]), eps = 0.0001)
-                if converged: print(n)
-                qubitlist.append(chain.toric.qubit_matrix)
-            else: break
-        converged = False
-        #print(nbr_errors_chain[i,:])
-
-    # Only consider unique elements
-    qubitlist = np.unique(qubitlist, axis=0)
     # --------Determine EC-Distrubution--------
     eqdistr = np.zeros(16)
     beta = -log((p / 3) / (1-p))
 
-    for i in range(len(qubitlist)):
-        eq = define_equivalence_class(qubitlist[i])
-        eqdistr[eq] += exp(-beta*np.count_nonzero(qubitlist[i]))
+    for i in range(16):
+        for key in qubitlist[i]:
+            eqdistr[i] += exp(-beta*qubitlist[i][key])
 
     return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
 
