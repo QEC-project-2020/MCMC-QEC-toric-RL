@@ -46,7 +46,7 @@ def single_temp(init_toric, p, max_iters, eps, burnin = 625, conv_criteria = 'er
     return mean_array, convergence_reached, eq_array_translate
 
 
-def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i papper
+def conv_crit_error_based_basic(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i papper
     # last nonzero element of nbr_errors_bottom_chain is since_burn. Length of nonzero part is since_burn + 1
     # Calculate average number of errors in 2nd and 4th quarter
     Average_Q2 = np.average(nbr_errors_chain[(l // 4): (l // 2)])
@@ -88,6 +88,8 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps=20000, convcrit = 'error
 
     qubitlist = [{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}]
 
+
+
     nbr_errors_chain = np.zeros((16, steps))
 
     for i in range(16):
@@ -111,15 +113,112 @@ def single_temp_direct_sum(qubit_matrix, size, p, steps=20000, convcrit = 'error
     return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
 
 
+def ptdc(qubit_matrix, Nc=None, p=0.1, tops_burn = 10, TOPS = 10, eps=0.001, steps=1000000, iters=10, conv_criteria='error_based', steps_after_convergence = 1000):
+    size = qubit_matrix.size
+    Nc = Nc or size
+    result = np.zeros((16))
+    init_toric = Toric_code(size)
+    init_toric.qubit_matrix = qubit_matrix
+    # create the diffrent chains in an array
+    # number of chains in ladder, must be odd
+    if not Nc % 2:
+        print('Number of chains was not odd.')
+    qubitlist = [{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}]
+    eq_array_translate = np.zeros((16))
+    for p in range(16):
+        init_toric.qubit_matrix = apply_logical_operator(qubit_matrix, p)
+        eq_array_translate[p] = define_equivalence_class(init_toric.qubit_matrix)
+    for n in range(16):
+        ladder = []  # ladder to store all chains
+        p_end = 0.2  # p at top chain as per high-threshold paper
+        tops0 = 0
+        resulting_burn_in = 0
+        since_burn = 0
+        nbr_errors_bottom_chain = np.zeros(steps)
+        eq = np.zeros([steps, 16], dtype=np.uint32)  # list of class counts after burn in
 
+        # Save statistics
+
+
+        # used in error_based/majority_based instead of setting tops0 = TOPS
+        tops_change = 0
+
+        convergence_reached = False
+        afterconv = 0
+
+
+        # add and copy state for all chains in ladder
+        for i in range(Nc):
+            p_i = p + ((p_end - p) / (Nc - 1)) * i
+            ladder.append(Chain(size, p_i)) # give all the same initial state
+            ladder[i].toric = copy.deepcopy(init_toric)
+        #ladder[Nc - 1].p_logical = 0.5  # set probability of application of logical operator in top chain
+
+        count = -1
+        for j in range(steps):
+            # run mcmc for each chain [steps] times
+            for i in range(Nc):
+                ladder[i].update_chain(iters)
+            # current_eq attempt flips from the top down
+            ladder[-1].flag = 1
+            for i in reversed(range(Nc - 1)):
+                if r_flip(ladder[i].toric.qubit_matrix, ladder[i].p, ladder[i + 1].toric.qubit_matrix, ladder[i + 1].p):
+                    ladder[i].toric, ladder[i + 1].toric = ladder[i + 1].toric, ladder[i].toric
+                    ladder[i].flag, ladder[i + 1].flag = ladder[i + 1].flag, ladder[i].flag
+            if ladder[0].flag == 1:
+                tops0 += 1
+                ladder[0].flag = 0
+
+            """#current_eq = define_equivalence_class(ladder[0].toric.qubit_matrix)
+
+            if tops0 >= tops_burn:
+                since_burn = j - resulting_burn_in
+                #eq[since_burn] = eq[since_burn - 1]
+                #eq[since_burn][current_eq] += 1
+                nbr_errors_bottom_chain[since_burn] = np.count_nonzero(ladder[0].toric.qubit_matrix)
+
+            else:
+                # number of steps until tops0 = 2
+                resulting_burn_in += 1
+
+            if not convergence_reached and tops0 >= TOPS and not since_burn % 10:
+                if conv_criteria == 'error_based':
+                    tops_accepted = tops0 - tops_change
+                    accept, convergence_reached = conv_crit_error_based(nbr_errors_bottom_chain, since_burn, tops_accepted, SEQ = 0, eps = eps)
+                    if not accept:
+                        tops_change = tops0
+
+            if convergence_reached:
+                afterconv +=1
+                if afterconv == steps_after_convergence:
+                    print(j)
+                    break"""
+
+            #qubitlist.append(ladder[0].toric.qubit_matrix)
+            qubitlist[n][ladder[0].toric.qubit_matrix.tostring()] = np.count_nonzero(ladder[0].toric.qubit_matrix)
+
+
+        beta = -log((p_error / 3) / (1-p_error))
+        for l in range(16):
+            for key in qubitlist[l]:
+                x  = int(eq_array_translate[l])
+                result[x] += exp(-beta*qubitlist[l][key])
+
+    return (np.divide(result, sum(result)) * 100).astype(np.uint8)
 
 
 
 if __name__ == '__main__':
     init_toric = Toric_code(5)
-    p_error = 0.19
+    p_error = 0.16
     #init_toric.generate_random_error(p_error)
-    data_reader = MCMCDataReader('training_data/data_5x5_p_0.19', init_toric.system_size)
+    data_reader = MCMCDataReader('training_data/data_5x5_p_0.16', init_toric.system_size)
+    init_toric.qubit_matrix, distr = data_reader.next()
+    #init_toric.generate_random_error(p_error)
+    Ze = ptdc(init_toric.qubit_matrix, Nc=3, p=0.1, tops_burn = 100, TOPS = 10, eps=0.0001, steps=100000, iters=10, conv_criteria=None)
+    print(Ze, "PTDC")
+    print(distr, "MCMC")
+    """data_reader = MCMCDataReader('training_data/data_5x5_p_0.19', init_toric.system_size)
     success = 0
     iters = 100
     for j in range(iters):
@@ -129,7 +228,7 @@ if __name__ == '__main__':
         print(distr, 'MCMC')
         if np.argmax(result) == np.argmax(distr): success+=1
         print(j)
-    print('same as MCMC for this many syndromes: ', success/iters)
+    print('same as MCMC for this many syndromes: ', success/iters)"""
 
 
     """mean_array, convergence_reached, eq_array_translate = single_temp(init_toric, p = p_error, max_iters = 1000000, eps = 0.00001, burnin = 100000, conv_criteria = 'error_based')
