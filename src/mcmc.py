@@ -5,6 +5,7 @@ import collections
 
 from numba import jit, prange
 from .toric_model import Toric_code
+from .planar_model import Planar_code
 from .util import Action
 import pandas as pd
 
@@ -17,52 +18,61 @@ rule_table = np.array(([[0, 1, 2, 3], [1, 0, 3, 2],
 
 
 class Chain:
-    def __init__(self, size, p):
-        self.toric = Toric_code(size)
+    def __init__(self, size, p, code=None):
+        if code is None:
+             self.code = Toric_code(size)
+        else:
+            if not isinstance(code, (Toric_code, Planar_code)):
+                raise ValueError("'code' has to be None, or an instance of Planar_code or Toric_code")
+            else:
+                self.code = code
+
         self.size = size
         self.p = p
         self.p_logical = 0
         self.flag = 0
         self.factor = ((self.p / 3.0) / (1.0 - self.p))  # rename me
     # runs iters number of steps of the metroplois-hastings algorithm
-    
+
     def update_chain(self, iters):
         if self.p_logical != 0:
             for _ in range(iters):
                 # apply logical or stabilizer with p_logical
                 if rand.random() < self.p_logical:
-                    new_matrix, qubit_errors_change = apply_random_logical(self.toric.qubit_matrix)
+                    new_matrix, qubit_errors_change = self.code.apply_random_logical()
                 else:
-                    new_matrix, qubit_errors_change = apply_random_stabilizer(self.toric.qubit_matrix)
+                    new_matrix, qubit_errors_change = self.code.apply_random_stabilizer()
 
                 # Avoid calculating r if possible. If self.p is 0.75 r = 1 and we accept all changes
                 # If the new qubit matrix has equal or fewer errors, r >= 1 and we also accept all changes
                 if self.p >= 0.75 or qubit_errors_change <= 0:
-                    self.toric.qubit_matrix = new_matrix
+                    self.code.qubit_matrix = new_matrix
                     continue
                 # acceptence ratio
                 if rand.random() < self.factor ** qubit_errors_change:
-                    self.toric.qubit_matrix = new_matrix
+                    self.code.qubit_matrix = new_matrix
+
         else:
             for _ in range(iters):
-                new_matrix, qubit_errors_change = apply_random_stabilizer(self.toric.qubit_matrix)
+                new_matrix, qubit_errors_change = self.code.apply_random_stabilizer()
 
                 # acceptence ratio
                 if rand.random() < self.factor ** qubit_errors_change:
-                    self.toric.qubit_matrix = new_matrix
-    
+                    self.code.qubit_matrix = new_matrix
+
+
     # plot toric code
-    def plot(self, name, eq_class=None):
-        self.toric.syndrom('next_state')
-        self.toric.plot_toric_code(self.toric.next_state, name, eq_class)
+    """def plot(self, name, eq_class=None):
+        self.code.syndrom('next_state')
+        self.code.plot_toric_code(self.code.next_state, name, eq_class)"""
 
 
 # This is the object we crate to read a file during training
-class MCMCDataReader:  
+class MCMCDataReader:
     def __init__(self, file_path, size):
         # file_path needs to be dataframe in pickle format
         self.__file_path = file_path
-        # size is the size of the toric code 
+        # size is the size of the toric code
         self.__size = size
         self.__df = pd.read_pickle(file_path)
         try:
@@ -71,7 +81,7 @@ class MCMCDataReader:
         except:
             print('No input file for MCMCDataReader')
         self.__current_index = 0
-        
+
     # return next errorchain,distribution pair
     def next(self):
         if self.__current_index < self.__capacity:
@@ -92,7 +102,7 @@ class MCMCDataReader:
         return self.__capacity
 
 
-# parallel tempering method. returns equivalence class distribution distr 
+# parallel tempering method. returns equivalence class distribution distr
 # and the number of steps taken when convergegence is reached, count
 def parallel_tempering(init_toric, Nc=None, p=0.1, SEQ=5, TOPS=10, tops_burn=2, eps=0.001, n_tol=1e-4, steps=1000000, iters=10, conv_criteria='error_based'):
     size = init_toric.system_size
@@ -126,7 +136,7 @@ def parallel_tempering(init_toric, Nc=None, p=0.1, SEQ=5, TOPS=10, tops_burn=2, 
     for i in range(Nc):
         p_i = p + ((p_end - p) / (Nc - 1)) * i
         ladder.append(Chain(size, p_i))
-        ladder[i].toric = copy.deepcopy(init_toric)  # give all the same initial state
+        ladder[i].code= copy.deepcopy(init_toric)  # give all the same initial state
     ladder[Nc - 1].p_logical = 0.5  # set probability of application of logical operator in top chain
 
     count = -1
@@ -137,21 +147,21 @@ def parallel_tempering(init_toric, Nc=None, p=0.1, SEQ=5, TOPS=10, tops_burn=2, 
         # current_eq attempt flips from the top down
         ladder[-1].flag = 1
         for i in reversed(range(Nc - 1)):
-            if r_flip(ladder[i].toric.qubit_matrix, ladder[i].p, ladder[i + 1].toric.qubit_matrix, ladder[i + 1].p):
-                ladder[i].toric, ladder[i + 1].toric = ladder[i + 1].toric, ladder[i].toric
+            if r_flip(ladder[i].code.qubit_matrix, ladder[i].p, ladder[i + 1].code.qubit_matrix, ladder[i + 1].p):
+                ladder[i].code, ladder[i + 1].code= ladder[i + 1].code, ladder[i].code
                 ladder[i].flag, ladder[i + 1].flag = ladder[i + 1].flag, ladder[i].flag
         if ladder[0].flag == 1:
             tops0 += 1
             ladder[0].flag = 0
 
-        current_eq = define_equivalence_class(ladder[0].toric.qubit_matrix)
+        current_eq = define_equivalence_class(ladder[0].code.qubit_matrix)
 
         if tops0 >= tops_burn:
             since_burn = j - resulting_burn_in
 
             eq[since_burn] = eq[since_burn - 1]
             eq[since_burn][current_eq] += 1
-            nbr_errors_bottom_chain[since_burn] = np.count_nonzero(ladder[0].toric.qubit_matrix)
+            nbr_errors_bottom_chain[since_burn] = np.count_nonzero(ladder[0].code.qubit_matrix)
 
         else:
             # number of steps until tops0 = 2
@@ -168,7 +178,7 @@ def parallel_tempering(init_toric, Nc=None, p=0.1, SEQ=5, TOPS=10, tops_burn=2, 
             count=j
             break
 
-        qubitlist.append(ladder[0].toric.qubit_matrix)
+        qubitlist.append(ladder[0].code.qubit_matrix)
 
     distr = (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8)
     return distr, count, qubitlist
