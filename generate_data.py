@@ -48,16 +48,16 @@ def generate(file_path, params, timeout,
         print('Starting generation of point nr: ' + str(i + 1))
 
         # Initiate toric
-        init_toric = Toric_code(params['size'])
-        init_toric.generate_random_error(params['p'])
+        init_code = Toric_code(params['size'])
+        init_code.generate_random_error(params['p'])
 
         #randomize input matrix, no trace of seed.
-        input_matrix, _ = apply_random_logical(init_toric.qubit_matrix)
+        input_matrix, _ = apply_random_logical(init_code.qubit_matrix)
         input_matrix = apply_stabilizers_uniform(input_matrix) # fix so all uses these
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
         if method == "PTEC":
-            df_eq_distr, _, _ = parallel_tempering(init_toric, params['Nc'],
+            df_eq_distr, _, _ = parallel_tempering(init_code, params['Nc'],
                                          p=params['p'], steps=params['steps'],
                                          iters=params['iters'],
                                          conv_criteria=params['conv_criteria'])
@@ -65,16 +65,20 @@ def generate(file_path, params, timeout,
             df_eq_distr = single_temp_direct_sum(input_matrix,params['size'],params['p'])
             df_eq_distr = np.array(df_eq_distr)
         elif method == "ST":
-            df_eq_distr = single_temp(init_toric,params['p'],params['steps'], params['eps'])
+            mean_array, _ , _ = single_temp(init_code, params['p'], params['steps'], params['eps'], burnin=0, conv_criteria = None)
+            df_eq_distr = np.array(mean_array)
+        elif method == "STRC":
+            df_eq_distr = single_temp_relative_count(init_code, size = init_code.system_size, p_error = params['p'], p_sampling= p_sampling, steps=params['steps'])
             df_eq_distr = np.array(df_eq_distr)
+
         else:
             raise ValueError('Invalid method, use "PTEC", "STDC" or "ST".')
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
-        
+
 
         # Flatten initial qubit matrix to store in dataframe
-        df_qubit = init_toric.qubit_matrix.reshape((-1))
+        df_qubit = init_code.qubit_matrix.reshape((-1))
 
         # Create indices for generated data
         names = ['data_nr', 'layer', 'x', 'y']
@@ -92,13 +96,13 @@ def generate(file_path, params, timeout,
                                 index=index_distr, columns=['data'])
 
         # Add dataframes to temporary list to shorten computation time
-        
+
         df_list.append(df_qubit)
         df_list.append(df_distr)
 
         # Every x iteration adds data to data file from temporary list
         # and clears temporary list
-        
+
         if (i + 1) % 3 == 0:
             df = df.append(df_list)
             df_list.clear()
@@ -118,6 +122,8 @@ if __name__ == '__main__':
     # All paramteters for data generation is set here,
     # some of which may be irrelevant depending on the choice of others
     t_start = time.time()
+
+    steps  = 100000
     params = {'size': 5,
               'p': 0.185,
               'Nc': 9,
@@ -126,8 +132,8 @@ if __name__ == '__main__':
               'conv_criteria': 'error_based',
               'SEQ': 7,
               'TOPS': 10,
-              'eps': 0.005}
-
+              'eps': 0.005,
+              'p_sampling': 0.185}
     # Get job array id, set working directory, set timer
     try:
         array_id = str(sys.argv[1])
@@ -146,7 +152,7 @@ if __name__ == '__main__':
     generate(file_path, params, timeout, method="ST")
 
     # View data file
-    
+
     iterator = MCMCDataReader(file_path, params['size'])
     while iterator.has_next():
         print('Datapoint nr: ' + str(iterator.current_index() + 1))
