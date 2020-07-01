@@ -38,15 +38,15 @@ def convert_from_np_to_tensor(tensor):
     return tensor
 
 
-# Returns number of equally probable equivalence classes in eq_distr given a relative error tolerance rel_tol
-def count_equal_classes(eq_distr, rel_tol=0.05):
+# Returns number of degenerate equivalence classes in eq_distr given a relative error tolerance rel_tol
+def count_eq_degenerate(eq_distr, rel_tol=0.1):
     sorted_distr = np.sort(eq_distr)[::-1]
 
     i = 0
     while sorted_distr[i+1] > sorted_distr[i] * (1 - rel_tol):
         i += 1
     
-    return i
+    return i + 1
 
 
 # Helper function. 
