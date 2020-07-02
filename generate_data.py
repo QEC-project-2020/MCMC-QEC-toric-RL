@@ -141,18 +141,21 @@ if __name__ == '__main__':
     # All paramteters for data generation is set here,
     # some of which may be irrelevant depending on the choice of others
     t_start = time.time()
-    nbr_datapoints = 50
+    nbr_datapoints = 100
+
+
+
     method="STDC"
-    params = {'size': 7,
-              'p': 0.01,
+    params = {'size': 3,
+              'p': 0.05,
               'Nc': 9,
-              'steps': 30000,
+              'steps': 100,
               'iters': 10,
               'conv_criteria': 'error_based',
               'SEQ': 7,
               'TOPS': 10,
               'eps': 0.005,
-              'p_sampling': 0.1}
+              'p_sampling': 0.05}
     # Get job array id, set working directory, set timer
     try:
         array_id = str(sys.argv[1])
@@ -209,7 +212,16 @@ if __name__ == '__main__':
 
     print("num steps", params['steps'])
     plt.legend()
-    plt.show()
+    PATH = '/steps_graphs/'
+
+
+    #while os.path.exists(PATH + str(params['p']) + '_size' + str(params['size']) + '_steps' + str(params['steps']) + 'raindrops_steps/100' + 'i' + '.png'):
+    #    i+=1
+
+    #plt.savefig(str(params['p']) + '_size' + str(params['size']) + '_steps' + str(params['steps']) + 'raindrops_steps/100')
+    filename = './steps_graphs/' +'test' + str(params['steps']) + '.png'
+    plt.savefig(filename)
+    #plt.show()
 
 
 
