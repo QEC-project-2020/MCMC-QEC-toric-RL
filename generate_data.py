@@ -5,10 +5,12 @@ import time
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from src.toric_model import Toric_code
+from src.planar_model import Planar_code
 from src.mcmc import *
-from decoders import single_temp_direct_sum, single_temp
+from decoders import STDC, STRC, single_temp
 
 
 # This function generates training data with help of the MCMC algorithm
@@ -48,12 +50,13 @@ def generate(file_path, params, timeout,
         print('Starting generation of point nr: ' + str(i + 1))
 
         # Initiate toric
-        init_code = Toric_code(params['size'])
+        init_code = Planar_code(params['size'])
         init_code.generate_random_error(params['p'])
 
         #randomize input matrix, no trace of seed.
         input_matrix, _ = apply_random_logical(init_code.qubit_matrix)
-        input_matrix = apply_stabilizers_uniform(input_matrix) # fix so all uses these
+        input_matrix = init_code.apply_stabilizers_uniform() # fix so all uses these
+        init_code.qubit_matrix = input_matrix
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
         if method == "PTEC":
@@ -61,79 +64,95 @@ def generate(file_path, params, timeout,
                                          p=params['p'], steps=params['steps'],
                                          iters=params['iters'],
                                          conv_criteria=params['conv_criteria'])
-        elif method == "STDC":
-            df_eq_distr = single_temp_direct_sum(input_matrix,params['size'],params['p'])
-            df_eq_distr = np.array(df_eq_distr)
-        elif method == "ST":
-            mean_array, _ , _ = single_temp(init_code, params['p'], params['steps'], params['eps'], burnin=0, conv_criteria = None)
-            df_eq_distr = np.array(mean_array)
-        elif method == "STRC":
-            df_eq_distr = single_temp_relative_count(init_code, size = init_code.system_size, p_error = params['p'], p_sampling= p_sampling, steps=params['steps'])
-            df_eq_distr = np.array(df_eq_distr)
 
-        else:
-            raise ValueError('Invalid method, use "PTEC", "STDC" or "ST".')
+        df_eq_distr= single_temp(init_code, params['p'], params['steps'])
+        df_eq_distr1 = np.array(df_eq_distr)
+
+        df_eq_distr = STDC(init_code, size = params['size'], p_error = params['p'], p_sampling = params['p'], steps=params['steps'])
+        df_eq_distr2 = np.array(df_eq_distr)
+
+        df_eq_distr = STRC(init_code, size = init_code.system_size, p_error = params['p'], p_sampling= params['p'], steps=params['steps'])
+        df_eq_distr3 = np.array(df_eq_distr)
+
+
+        #else:
+        #    raise ValueError('Invalid method, use "PTEC", "STDC" or "ST".')
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
 
+        #print((df_eq_distr.transpose()).tolist(), 'df_eq_distr')
+
+        #df_eq_distr = #(df_eq_distr.transpose()).tolist()
 
         # Flatten initial qubit matrix to store in dataframe
-        df_qubit = init_code.qubit_matrix.reshape((-1))
+        df_qubit = init_code.qubit_matrix.tolist()
 
         # Create indices for generated data
         names = ['data_nr', 'layer', 'x', 'y']
-        index_qubit = pd.MultiIndex.from_product([[i], np.arange(2),
+
+        """index_qubit = pd.MultiIndex.from_product([[i], np.arange(2),
                                                  np.arange(params['size']),
                                                  np.arange(params['size'])],
                                                  names=names)
-        index_distr = pd.MultiIndex.from_product([[i], np.arange(16)+2, [0],
-                                                 [0]], names=names)
+        index_distr = pd.MultiIndex.from_product([[i], [2], [0],
+                                                 [0]], names=names)"""
+
 
         # Add data to Dataframes
-        df_qubit = pd.DataFrame(df_qubit.astype(np.uint8), index=index_qubit,
-                                columns=['data'])
-        df_distr = pd.DataFrame(df_eq_distr.astype(np.uint8),  # dtype for eq_distr? want uint16
-                                index=index_distr, columns=['data'])
+        #df_qubit = pd.DataFrame(df_qubit.astype(np.uint8), index=index_qubit,
+                                #columns=['data'])
+        df_eq_distr1 = (df_eq_distr1.transpose()).tolist() #  = df_eq_distr.reshape((-1))
+        df_eq_distr2 = (df_eq_distr2.transpose()).tolist()
+        df_eq_distr3 = (df_eq_distr3.transpose()).tolist()
+
+        df_entry = pd.DataFrame([[df_qubit, df_eq_distr1, df_eq_distr2, df_eq_distr3]], columns = ['data', 'eq_steps_ST', 'eq_steps_STDC','eq_steps_STRC']) #['data'])
 
         # Add dataframes to temporary list to shorten computation time
 
-        df_list.append(df_qubit)
-        df_list.append(df_distr)
+        #df_list.append(df_qubit)
+        df_list.append(df_entry)
 
         # Every x iteration adds data to data file from temporary list
         # and clears temporary list
 
-        if (i + 1) % 3 == 0:
-            df = df.append(df_list)
+        if (i + 1) % 100 == 0:
+            df = df.append(df_list, ignore_index = True)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
             df.to_pickle(file_path)
 
     # Adds any remaining data from temporary list to data file when run is over
     if len(df_list) > 0:
-        df = df.append(df_list)
+        df = df.append(df_list, ignore_index = True)
         print('\nSaving all generated data (writing over)')
         df.to_pickle(file_path)
 
+    #print(df)
     print('\nCompleted')
+
+def pickle_reader(file_path):
+    unpickled_df = pd.read_pickle(str(file_path))
+    return unpickled_df
+
+
 
 
 if __name__ == '__main__':
     # All paramteters for data generation is set here,
     # some of which may be irrelevant depending on the choice of others
     t_start = time.time()
-
-    steps  = 100000
-    params = {'size': 5,
-              'p': 0.185,
+    nbr_datapoints = 50
+    method="STDC"
+    params = {'size': 7,
+              'p': 0.01,
               'Nc': 9,
-              'steps': 500000,
+              'steps': 30000,
               'iters': 10,
               'conv_criteria': 'error_based',
               'SEQ': 7,
               'TOPS': 10,
               'eps': 0.005,
-              'p_sampling': 0.185}
+              'p_sampling': 0.1}
     # Get job array id, set working directory, set timer
     try:
         array_id = str(sys.argv[1])
@@ -148,12 +167,67 @@ if __name__ == '__main__':
     # Build file path
     file_path = os.path.join(local_dir, 'data_' + array_id + '.xz')
 
+
     # Generate data
-    generate(file_path, params, timeout, method="ST")
+    methods = ["ST", "STDC", "STRC"]
+    generate(file_path, params, timeout, method=method, nbr_datapoints = nbr_datapoints)
+    unpickled_df  = pickle_reader(file_path)
+    qubits = unpickled_df['data'].to_numpy()
+
+
+    for method in methods:
+        eq_steps = unpickled_df["eq_steps_" + method].tolist()
+        init_code = Planar_code(params['size'])
+        success = np.zeros((len(qubits),len(eq_steps[0])))
+        #print('180', len(qubits),len(data[0]))
+        success_rate = np.zeros(len(eq_steps[0]))
+        for i in range(len(qubits)):
+            #print("data", i, data[i])
+            for j in range(len(eq_steps[0])):
+
+                q = np.asarray(qubits[i])
+                d = np.asarray(eq_steps[i][j])
+                #print(d, 'd')
+                init_code.qubit_matrix = q
+                a =  init_code.define_equivalence_class()
+                # NB: if ST use argmin
+                if method == "STDC" or method == "STRC":
+                    if a == np.argmax(d):
+                        success[i, j] = 1
+                elif method == "ST":
+                    if a == np.argmin(d):
+                        success[i, j] = 1
+
+        #print(success, 'success')
+        for j in range(len(success_rate)):
+            #print(success[:, j])
+            success_rate[j] = np.sum(success[:, j])/(len(success[:, j]))
+        print(success_rate, 'success_rate', method)
+
+        #plt.plot(success_rate, label=method)
+        line = plt.plot(success_rate, label = method)
+
+    print("num steps", params['steps'])
+    plt.legend()
+    plt.show()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     # View data file
+    #iterator = MCMCDataReader(file_path, params['size'])
 
-    iterator = MCMCDataReader(file_path, params['size'])
-    while iterator.has_next():
-        print('Datapoint nr: ' + str(iterator.current_index() + 1))
-        print(iterator.next())
+    #while iterator.has_next():
+    #    print('Datapoint nr: ' + str(iterator.current_index() + 1))
+    #    print(iterator.next())
