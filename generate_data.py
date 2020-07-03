@@ -2,7 +2,7 @@ import copy  # not used
 import os
 import sys
 import time
-
+from datetime import datetime
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -141,21 +141,12 @@ if __name__ == '__main__':
     # All paramteters for data generation is set here,
     # some of which may be irrelevant depending on the choice of others
     t_start = time.time()
-    nbr_datapoints = 100
+    nbr_datapoints = 500
 
 
 
     method="STDC"
-    params = {'size': 3,
-              'p': 0.05,
-              'Nc': 9,
-              'steps': 100,
-              'iters': 10,
-              'conv_criteria': 'error_based',
-              'SEQ': 7,
-              'TOPS': 10,
-              'eps': 0.005,
-              'p_sampling': 0.05}
+
     # Get job array id, set working directory, set timer
     try:
         array_id = str(sys.argv[1])
@@ -166,9 +157,23 @@ if __name__ == '__main__':
         local_dir = '.'
         timeout = 100000000000
         print('invalid sysargs')
+    params = {'size': int(array_id),
+              'p': 0.05,
+              'Nc': 9,
+              'steps': int((10000 * (int(array_id)/5)**4)/100)*100,
+              'iters': 10,
+              'conv_criteria': 'error_based',
+              'SEQ': 7,
+              'TOPS': 10,
+              'eps': 0.005,
+              'p_sampling': 0.05}
+    now = datetime.now()
 
+    timestamp = datetime.timestamp(now)
+    print("timestamp =", timestamp)
+    raindrops = 1
     # Build file path
-    file_path = os.path.join(local_dir, 'data_' + array_id + '.xz')
+    file_path = os.path.join(local_dir, 'data_' + array_id + '_' + str(params['steps']) + '_' + str(params['p']) + '_raindrops' + str(raindrops) + '_' + str(timestamp)  + '.xz')
 
 
     # Generate data
@@ -219,7 +224,7 @@ if __name__ == '__main__':
     #    i+=1
 
     #plt.savefig(str(params['p']) + '_size' + str(params['size']) + '_steps' + str(params['steps']) + 'raindrops_steps/100')
-    filename = './steps_graphs/' +'test' + str(params['steps']) + '.png'
+    filename = './steps_graphs/' +'test' + str(params['steps']) + '_' + str(params['p']) +  '_' + str(params['size']) + '.png'
     plt.savefig(filename)
     #plt.show()
 
