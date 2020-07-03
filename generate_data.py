@@ -2,7 +2,7 @@ import copy  # not used
 import os
 import sys
 import time
-
+from datetime import datetime
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -159,20 +159,16 @@ if __name__ == '__main__':
         local_dir = '.'
         timeout = 100000000000
         print('invalid sysargs')
-
     params = {'size': int(array_id),
               'p': 0.05,
               'Nc': 9,
-              'steps': int(10000*(int(array_id)/5)**4/100)*100,
+              'steps': int((10000 * (int(array_id)/5)**4)/100)*100,
               'iters': 10,
               'conv_criteria': 'error_based',
               'SEQ': 7,
               'TOPS': 10,
               'eps': 0.005,
               'p_sampling': 0.05}
-
-    # Build file path
-
     now = datetime.now()
     timestamp = str(datetime.timestamp(now))
     print("timestamp =", timestamp)
