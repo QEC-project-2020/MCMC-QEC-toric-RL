@@ -58,7 +58,7 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000):
 
 
     num_points = 100
-    raindrops = int(steps/100)
+    raindrops = 10 #int(steps/100)
 
     freq = int(steps/num_points)
 
@@ -84,9 +84,9 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000):
             # go to class eq and apply stabilizers
             for _ in range(int(steps/num_points)):
                 total_counts+=1
-                if int(total_counts/4)%int(steps/raindrops) == 0:
+                #if int(total_counts/4)%int(steps/raindrops) == 0:
                     #print("STDC", int(total_counts/4))
-                    chain_list[eq].code.qubit_matrix = chain_list[eq].code.apply_stabilizers_uniform()
+                #    chain_list[eq].code.qubit_matrix = chain_list[eq].code.apply_stabilizers_uniform()
                 chain_list[eq].update_chain(5)
                 # add to dict (only gets added if it is new)
                 qubitlist[eq][chain.code.qubit_matrix.tostring()] = np.count_nonzero(chain_list[eq].code.qubit_matrix)
@@ -104,7 +104,7 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000):
 def STRC(init_code, size, p_error, p_sampling=None, steps=20000):
     nbr_eq_classes = init_code.nbr_eq_classes
     num_points = 100
-    raindrops = raindrops = int(steps/100)
+    raindrops = 10 #int(steps/100)
 
     p_sampling = p_sampling or p_error
     beta_error = -log((p_error / 3) / (1 - p_error))
@@ -147,9 +147,9 @@ def STRC(init_code, size, p_error, p_sampling=None, steps=20000):
 
             for step in range(int(steps/num_points)):
                 total_counts+=1
-                if int(total_counts/4)%int(steps/raindrops) == 0:
+                #if int(total_counts/4)%int(steps/raindrops) == 0:
                     #print("STRC", int(total_counts/4))
-                    chain_list[eq].code.qubit_matrix = chain_list[eq].code.apply_stabilizers_uniform()
+                #    chain_list[eq].code.qubit_matrix = chain_list[eq].code.apply_stabilizers_uniform()
 
                 chain_list[eq].update_chain(5)
                 key = chain_list[eq].code.qubit_matrix.tostring()

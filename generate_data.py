@@ -6,6 +6,7 @@ import time
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 from src.toric_model import Toric_code
 from src.planar_model import Planar_code
@@ -104,6 +105,7 @@ def generate(file_path, params, timeout,
         df_eq_distr1 = (df_eq_distr1.transpose()).tolist() #  = df_eq_distr.reshape((-1))
         df_eq_distr2 = (df_eq_distr2.transpose()).tolist()
         df_eq_distr3 = (df_eq_distr3.transpose()).tolist()
+        #steps = i*params['steps']
 
         df_entry = pd.DataFrame([[df_qubit, df_eq_distr1, df_eq_distr2, df_eq_distr3]], columns = ['data', 'eq_steps_ST', 'eq_steps_STDC','eq_steps_STRC']) #['data'])
 
@@ -141,21 +143,12 @@ if __name__ == '__main__':
     # All paramteters for data generation is set here,
     # some of which may be irrelevant depending on the choice of others
     t_start = time.time()
-    nbr_datapoints = 100
+    nbr_datapoints = 500
 
 
 
     method="STDC"
-    params = {'size': 3,
-              'p': 0.05,
-              'Nc': 9,
-              'steps': 100,
-              'iters': 10,
-              'conv_criteria': 'error_based',
-              'SEQ': 7,
-              'TOPS': 10,
-              'eps': 0.005,
-              'p_sampling': 0.05}
+
     # Get job array id, set working directory, set timer
     try:
         array_id = str(sys.argv[1])
@@ -167,8 +160,24 @@ if __name__ == '__main__':
         timeout = 100000000000
         print('invalid sysargs')
 
+    params = {'size': int(array_id),
+              'p': 0.05,
+              'Nc': 9,
+              'steps': int(10000*(int(array_id)/5)**4/100)*100,
+              'iters': 10,
+              'conv_criteria': 'error_based',
+              'SEQ': 7,
+              'TOPS': 10,
+              'eps': 0.005,
+              'p_sampling': 0.05}
+
     # Build file path
-    file_path = os.path.join(local_dir, 'data_' + array_id + '.xz')
+
+    now = datetime.now()
+    timestamp = str(datetime.timestamp(now))
+    print("timestamp =", timestamp)
+
+    file_path = os.path.join(local_dir, 'data_' + array_id + '_' + str(params['steps']) + '_' + str(params['p']) + '_' + str(params['size']) + timestamp + '.xz')
 
 
     # Generate data
@@ -190,7 +199,6 @@ if __name__ == '__main__':
 
                 q = np.asarray(qubits[i])
                 d = np.asarray(eq_steps[i][j])
-                #print(d, 'd')
                 init_code.qubit_matrix = q
                 a =  init_code.define_equivalence_class()
                 # NB: if ST use argmin
@@ -201,25 +209,20 @@ if __name__ == '__main__':
                     if a == np.argmin(d):
                         success[i, j] = 1
 
-        #print(success, 'success')
         for j in range(len(success_rate)):
-            #print(success[:, j])
             success_rate[j] = np.sum(success[:, j])/(len(success[:, j]))
         print(success_rate, 'success_rate', method)
-
-        #plt.plot(success_rate, label=method)
         line = plt.plot(success_rate, label = method)
 
     print("num steps", params['steps'])
     plt.legend()
-    PATH = '/steps_graphs/'
 
+    PATH = './steps_graphs/'
+    now = datetime.now()
+    timestamp = str(datetime.timestamp(now))
+    print("timestamp =", timestamp)
 
-    #while os.path.exists(PATH + str(params['p']) + '_size' + str(params['size']) + '_steps' + str(params['steps']) + 'raindrops_steps/100' + 'i' + '.png'):
-    #    i+=1
-
-    #plt.savefig(str(params['p']) + '_size' + str(params['size']) + '_steps' + str(params['steps']) + 'raindrops_steps/100')
-    filename = './steps_graphs/' +'test' + str(params['steps']) + '.png'
+    filename = './steps_graphs/' + str(params['steps']) + '_' + str(params['p']) + '_' + str(params['size']) + '_' + timestamp + '.png'
     plt.savefig(filename)
     #plt.show()
 
