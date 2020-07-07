@@ -11,7 +11,7 @@ from datetime import datetime
 from src.toric_model import Toric_code
 from src.planar_model import Planar_code
 from src.mcmc import *
-from decoders import STDC, STRC, single_temp
+from decoders import *
 
 
 # This function generates training data with help of the MCMC algorithm
@@ -53,18 +53,25 @@ def generate(file_path, params, timeout,
         # Initiate toric
         init_code = Planar_code(params['size'])
         init_code.generate_random_error(params['p'])
+        start_code = copy.deepcopy(init_code)
+
 
         #randomize input matrix, no trace of seed.
-        input_matrix, _ = apply_random_logical(init_code.qubit_matrix)
-        input_matrix = init_code.apply_stabilizers_uniform() # fix so all uses these
-        init_code.qubit_matrix = input_matrix
+        init_code.qubit_matrix, _ = init_code.apply_random_logical()
+        init_code.qubit_matrix = init_code.apply_stabilizers_uniform() # fix so all uses these
+
+
+        #print(start_code.qubit_matrix, "Here1")
+        #print(init_code.qubit_matrix, "Here2")
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
-        if method == "PTEC":
+        """if method == "PTEC":
             df_eq_distr, _, _ = parallel_tempering(init_code, params['Nc'],
                                          p=params['p'], steps=params['steps'],
                                          iters=params['iters'],
-                                         conv_criteria=params['conv_criteria'])
+                                         conv_criteria=params['conv_criteria'])"""
+
+
 
         df_eq_distr= single_temp(init_code, params['p'], params['steps'])
         df_eq_distr1 = np.array(df_eq_distr)
@@ -74,6 +81,15 @@ def generate(file_path, params, timeout,
 
         df_eq_distr = STRC(init_code, size = init_code.system_size, p_error = params['p'], p_sampling= params['p'], steps=params['steps'])
         df_eq_distr3 = np.array(df_eq_distr)
+
+        df_eq_distr = PTEQ(init_code, params['p'], steps = params['steps'])
+        df_eq_distr0 = np.array(df_eq_distr)
+
+        df_eq_distr = STDC_rain(init_code, init_code.system_size, params['p'], steps = params['steps'])
+        df_eq_distr4 = np.array(df_eq_distr)
+
+        df_eq_distr = STRC_rain(init_code, size = params['size'], p_error = params['p'], p_sampling=params['p'], droplets=10, steps=params['steps'])
+        df_eq_distr5 = np.array(df_eq_distr)
 
 
         #else:
@@ -86,7 +102,7 @@ def generate(file_path, params, timeout,
         #df_eq_distr = #(df_eq_distr.transpose()).tolist()
 
         # Flatten initial qubit matrix to store in dataframe
-        df_qubit = init_code.qubit_matrix.tolist()
+        df_qubit = start_code.qubit_matrix.tolist()
 
         # Create indices for generated data
         names = ['data_nr', 'layer', 'x', 'y']
@@ -102,12 +118,15 @@ def generate(file_path, params, timeout,
         # Add data to Dataframes
         #df_qubit = pd.DataFrame(df_qubit.astype(np.uint8), index=index_qubit,
                                 #columns=['data'])
+        df_eq_distr0 = (df_eq_distr0.transpose()).tolist()
         df_eq_distr1 = (df_eq_distr1.transpose()).tolist() #  = df_eq_distr.reshape((-1))
         df_eq_distr2 = (df_eq_distr2.transpose()).tolist()
         df_eq_distr3 = (df_eq_distr3.transpose()).tolist()
+        df_eq_distr4 = (df_eq_distr4.transpose()).tolist()
+        df_eq_distr5 = (df_eq_distr5.transpose()).tolist()
         #steps = i*params['steps']
 
-        df_entry = pd.DataFrame([[df_qubit, df_eq_distr1, df_eq_distr2, df_eq_distr3]], columns = ['data', 'eq_steps_ST', 'eq_steps_STDC','eq_steps_STRC']) #['data'])
+        df_entry = pd.DataFrame([[df_qubit, df_eq_distr0, df_eq_distr1, df_eq_distr2, df_eq_distr3, df_eq_distr4, df_eq_distr5]], columns = ['data', 'eq_steps_PTEQ' , 'eq_steps_ST', 'eq_steps_STDC','eq_steps_STRC', 'eq_steps_STDC_rain', 'eq_steps_STRC_rain']) #['data'])
 
         # Add dataframes to temporary list to shorten computation time
 
@@ -143,7 +162,7 @@ if __name__ == '__main__':
     # All paramteters for data generation is set here,
     # some of which may be irrelevant depending on the choice of others
     t_start = time.time()
-    nbr_datapoints = 500
+    nbr_datapoints = 300
 
 
 
@@ -162,7 +181,7 @@ if __name__ == '__main__':
     params = {'size': int(array_id),
               'p': 0.05,
               'Nc': 9,
-              'steps': int((10000 * (int(array_id)/5)**4)/100)*100,
+              'steps': 200, #int((10000 * (int(array_id)/5)**4)/100)*100,
               'iters': 10,
               'conv_criteria': 'error_based',
               'SEQ': 7,
@@ -173,11 +192,11 @@ if __name__ == '__main__':
     timestamp = str(datetime.timestamp(now))
     print("timestamp =", timestamp)
 
-    file_path = os.path.join(local_dir, 'data_' + array_id + '_' + str(params['steps']) + '_' + str(params['p']) + '_' + str(params['size']) + timestamp + '.xz')
+    file_path = os.path.join(local_dir, 'data_' + array_id + '_' + str(params['steps']) + '_' + str(params['p']) + '_' + str(params['size']) + '_' +  timestamp + '.xz')
 
 
     # Generate data
-    methods = ["ST", "STDC", "STRC"]
+    methods = ["PTEQ", "ST", "STDC", "STRC", "STDC_rain", "STRC_rain"]
     generate(file_path, params, timeout, method=method, nbr_datapoints = nbr_datapoints)
     unpickled_df  = pickle_reader(file_path)
     qubits = unpickled_df['data'].to_numpy()
@@ -198,7 +217,7 @@ if __name__ == '__main__':
                 init_code.qubit_matrix = q
                 a =  init_code.define_equivalence_class()
                 # NB: if ST use argmin
-                if method == "STDC" or method == "STRC":
+                if method == "STDC" or method == "STRC" or method == "PTEQ" or method == "STDC_rain" or method == "STRC_rain":
                     if a == np.argmax(d):
                         success[i, j] = 1
                 elif method == "ST":
@@ -220,7 +239,7 @@ if __name__ == '__main__':
 
     filename = './steps_graphs/' + str(params['steps']) + '_' + str(params['p']) + '_' + str(params['size']) + '_' + timestamp + '.png'
     plt.savefig(filename)
-    #plt.show()
+    plt.show()
 
 
 
