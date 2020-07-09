@@ -3,7 +3,7 @@ import random as rand
 import copy
 import collections
 
-from multiprocessing import Pool
+from multiprocessing import Pool, current_process
 from numba import jit, njit
 from src.toric_model import Toric_code
 from src.planar_model import *
@@ -25,7 +25,7 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=1000
     # System size is determined from init_code
     size = init_code.system_size
 
-    num_points = 30 #number of data points in eq steps graph
+    num_points = 100 #number of data points in eq steps graph
 
 
     # either 4 or 16 depending on choice of code topology
@@ -147,14 +147,13 @@ def conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, tops_accepted,
     else:
         return False, False
 
-
 def single_temp(init_code, p, max_iters):
     nbr_eq_classes = init_code.nbr_eq_classes
     ground_state = init_code.define_equivalence_class()
     ladder = [] # list of chain objects
     nbr_errors_chain = np.zeros((nbr_eq_classes, max_iters))
 
-    num_points = 10
+    num_points = 100
     freq = int(max_iters/num_points)
     mean_array = np.zeros((nbr_eq_classes, num_points-1))
     counter = 0
@@ -173,7 +172,7 @@ def single_temp(init_code, p, max_iters):
                 mean_array[eq][counter] = np.average(nbr_errors_chain[eq ,:j])
                 counter+=1
         counter = 0
-    return mean_array.round(decimals=2)
+    return mean_array
 
 def STDC(init_code, size, p_error, p_sampling, steps=20000):
 
@@ -187,7 +186,7 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000):
     qubitlist = [{},{},{},{}]
 
 
-    num_points = 30
+    num_points = 100
     #raindrops = 10 #int(steps/100)
 
     freq = int(steps/num_points)
@@ -232,8 +231,15 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000):
 
 def STDC_droplet(input_data_tuple):
     # All unique chains will be saved in samples
+    #process = current_process()
+    #i = (process._identity[0]-1)%10 # this is because it doesn't reuse process numbers
+
+    #print(i)
+
     samples = {}
-    chain, steps, flag = input_data_tuple
+    chain, steps, flag= input_data_tuple
+
+
 
 
     # Start in high energy state
@@ -246,7 +252,7 @@ def STDC_droplet(input_data_tuple):
         if key not in samples:
             samples[key] = chain.code.count_errors()
 
-    return samples
+    return [samples, chain]
 
 def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000):
     # set p_sampling equal to p_error by default
@@ -263,7 +269,7 @@ def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000
 
     # Z_E will be saved in eqdistr
 
-    num_points = 30
+    num_points = 100
     #raindrops = 10 #int(steps/100)
 
     freq = int(steps/num_points)
@@ -272,12 +278,17 @@ def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000
     eqdistr = np.zeros((nbr_eq_classes, num_points))
     counter = 0
     beta = -log((p_error / 3) / (1 - p_error))
+
     chain_list = []
+
     for eq in range(nbr_eq_classes):
-        chain = Chain(size, p_sampling, copy.deepcopy(init_code))
-        chain.code.qubit_matrix = init_code.to_class(eq)
-        chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
-        chain_list.append(chain)
+        drop_list = []
+        for _ in range(droplets):
+            chain = Chain(size, p_sampling, copy.deepcopy(init_code))
+            chain.code.qubit_matrix = init_code.to_class(eq)
+            chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
+            drop_list.append(chain)
+        chain_list.append(drop_list)
 
     total_counts = 0
     flag = True #decides whether to apply uniform stabilizers in pool
@@ -286,10 +297,20 @@ def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000
             for eq in range(nbr_eq_classes):
                 # go to class eq and apply stabilizers
                 if droplets == 1:
-                    output = STDC_droplet((chain_list[eq], int(steps/num_points), flag))
-                else: output = pool.map(STDC_droplet, [(chain_list[eq], int(steps/num_points), flag) for _ in range(droplets)])
+                    out = STDC_droplet((chain_list[eq][0], int(steps/num_points), flag))
+                    output = out[0]
+                    chain_output = out[1]
+                else:
+                    out = pool.map(STDC_droplet, [(chain_list[eq][i], int(steps/num_points), flag) for i in range(droplets)])
+                    output = []
+                    chain_output = []
+                    for k in range(droplets):
+                        output.append(out[k][0])
+                        chain_output.append(out[k][1])
+
                 for j in range(droplets):
                     qubitlist[eq].update(output[j])
+                    chain_list[eq][j] = chain_output[j]
                 flag = False
                 # compute Z_E
                 for key in qubitlist[eq]:
@@ -310,7 +331,7 @@ def STRC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000
     nbr_eq_classes = init_code.nbr_eq_classes
 
     #number of data points for plot
-    num_points = 30
+    num_points = 100
 
     # Create chain with p_sampling, this is allowed since N(n) is independet of p.
     #chain = Chain(size, p_sampling, copy.deepcopy(init_code))
@@ -359,7 +380,7 @@ def STRC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000
                 if droplets == 1:
                     unique_lengths_i, len_counts_i, short_unique_i, _,_ = STRC_droplet((chain_list[eq], int(steps/num_points), max_length, copy.deepcopy(short_unique), copy.deepcopy(len_counts[eq]), copy.deepcopy(unique_lengths[eq]), eq, flag))
                 else:
-                    output = pool.map(STRC_droplet, [(chain_list[eq], int(steps/num_points), max_length, eq, flag) for _ in range(droplets)])
+                    output = pool.map(STRC_droplet, [(copy.deepcopy(chain_list[eq]), int(steps/num_points), max_length, eq, flag) for _ in range(droplets)])
                 flag = False
 
                 #print(eq, short_unique[0].values())
@@ -455,7 +476,6 @@ def STRC_droplet(input_data_tuple):
     # Variables to easily keep track of the length of chains in short_unique
     shortest = max_length
     next_shortest = max_length
-
     # Apply random stabilizers to start in high temperature state
     if flag == True:
         chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
@@ -526,7 +546,7 @@ def STRC_droplet(input_data_tuple):
 
 def STRC(init_code, size, p_error, p_sampling=None, steps=20000):
     nbr_eq_classes = init_code.nbr_eq_classes
-    num_points = 30
+    num_points = 100
     #raindrops = 10 #int(steps/100)
 
     p_sampling = p_sampling or p_error

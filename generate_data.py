@@ -15,8 +15,7 @@ from decoders import *
 
 
 # This function generates training data with help of the MCMC algorithm
-def generate(file_path, params, timeout,
-             max_capacity=10**4, nbr_datapoints=10**6, method="PTEC"):
+def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**6, method="PTEC"):
 
     t_start = time.time()  # Initiates timing of run
 
@@ -76,10 +75,10 @@ def generate(file_path, params, timeout,
         df_eq_distr= single_temp(init_code, params['p'], params['steps'])
         df_eq_distr1 = np.array(df_eq_distr)
         t1 = time.time()
-        df_eq_distr = STDC(init_code, size = params['size'], p_error = params['p'], p_sampling = params['p'], steps=params['steps'])
+        df_eq_distr = STDC(init_code, size = params['size'], p_error = params['p'], p_sampling = params['p_sampling'], steps=params['steps'])
         df_eq_distr2 = np.array(df_eq_distr)
         t2 = time.time()
-        df_eq_distr = STRC(init_code, size = init_code.system_size, p_error = params['p'], p_sampling= params['p'], steps=params['steps'])
+        df_eq_distr = STRC(init_code, size = init_code.system_size, p_error = params['p'], p_sampling= params['p_sampling'], steps=params['steps'])
         df_eq_distr3 = np.array(df_eq_distr)
         t3 = time.time()
         df_eq_distr = PTEQ(init_code, params['p'], steps = params['steps'])
@@ -88,11 +87,11 @@ def generate(file_path, params, timeout,
         df_eq_distr = STDC_rain(init_code, init_code.system_size, params['p'], steps = params['steps'])
         df_eq_distr4 = np.array(df_eq_distr)
         t5 = time.time()
-        df_eq_distr = STRC_rain(init_code, size = params['size'], p_error = params['p'], p_sampling=params['p'], steps=params['steps'])
-        df_eq_distr5 = np.array(df_eq_distr)
-        t6 = time.time()
+        #df_eq_distr = STRC_rain(init_code, size = params['size'], p_error = params['p'], p_sampling=params['p_sampling'], steps=params['steps'])
+        #df_eq_distr5 = np.array(df_eq_distr)
+        #t6 = time.time()
 
-        print("ST: " , t1-t0, "STDC: ", t2-t1, "STRC: ", t3-t2, "PTEQ: ", t4-t3, "STDC_rain: ", t5-t4, "STRC_rain: ",t6-t5)
+        print("ST: " , t1-t0, "STDC: ", t2-t1, "STRC: ", t3-t2, "PTEQ: ", t4-t3, "STDC_rain: ", t5-t4)#, "STRC_rain: ",t6-t5)
 
         #else:
         #    raise ValueError('Invalid method, use "PTEC", "STDC" or "ST".')
@@ -125,10 +124,10 @@ def generate(file_path, params, timeout,
         df_eq_distr2 = (df_eq_distr2.transpose()).tolist()
         df_eq_distr3 = (df_eq_distr3.transpose()).tolist()
         df_eq_distr4 = (df_eq_distr4.transpose()).tolist()
-        df_eq_distr5 = (df_eq_distr5.transpose()).tolist()
+        #df_eq_distr5 = (df_eq_distr5.transpose()).tolist()
         #steps = i*params['steps']
 
-        df_entry = pd.DataFrame([[df_qubit, df_eq_distr0, df_eq_distr1, df_eq_distr2, df_eq_distr3, df_eq_distr4, df_eq_distr5]], columns = ['data', 'eq_steps_PTEQ' , 'eq_steps_ST', 'eq_steps_STDC','eq_steps_STRC', 'eq_steps_STDC_rain', 'eq_steps_STRC_rain']) #['data'])
+        df_entry = pd.DataFrame([[df_qubit, df_eq_distr0, df_eq_distr1, df_eq_distr2, df_eq_distr3, df_eq_distr4]], columns = ['data', 'eq_steps_PTEQ' , 'eq_steps_ST', 'eq_steps_STDC','eq_steps_STRC', 'eq_steps_STDC_rain']) #['data'])
 
         # Add dataframes to temporary list to shorten computation time
 
@@ -138,7 +137,7 @@ def generate(file_path, params, timeout,
         # Every x iteration adds data to data file from temporary list
         # and clears temporary list
 
-        if (i + 1) % 100 == 0:
+        if (i + 1) % 10 == 0:
             df = df.append(df_list, ignore_index = True)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
@@ -156,9 +155,6 @@ def generate(file_path, params, timeout,
 def pickle_reader(file_path):
     unpickled_df = pd.read_pickle(str(file_path))
     return unpickled_df
-
-
-
 
 if __name__ == '__main__':
     # All paramteters for data generation is set here,
@@ -183,22 +179,22 @@ if __name__ == '__main__':
     params = {'size': int(array_id),
               'p': 0.05,
               'Nc': 9,
-              'steps': 1500, #int((10000 * (int(array_id)/5)**4)/100)*100,
+              'steps': 30000, #int((20000 * (int(array_id)/5)**4)/100)*100,
               'iters': 10,
               'conv_criteria': 'error_based',
               'SEQ': 7,
               'TOPS': 10,
               'eps': 0.005,
-              'p_sampling': 0.05}
+              'p_sampling': 0.25}
     now = datetime.now()
     timestamp = str(datetime.timestamp(now))
     print("timestamp =", timestamp)
 
-    file_path = os.path.join(local_dir, 'data_' + array_id + '_' + str(params['steps']) + '_' + str(params['p']) + '_' + str(params['size']) + '_' +  timestamp + '.xz')
+    file_path = os.path.join(local_dir, 'data_' + array_id + '_' + str(params['steps']) + '_' + str(params['p']) + '_' + str(params['size']) + '_' + 'avg' + str(nbr_datapoints) + '_' +  timestamp + '.xz')
 
 
     # Generate data
-    methods = ["PTEQ", "ST", "STDC", "STRC", "STDC_rain", "STRC_rain"]
+    methods = ["PTEQ", "ST", "STDC", "STRC", "STDC_rain"]
     generate(file_path, params, timeout, method=method, nbr_datapoints = nbr_datapoints)
     unpickled_df  = pickle_reader(file_path)
     qubits = unpickled_df['data'].to_numpy()
