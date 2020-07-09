@@ -72,25 +72,27 @@ def generate(file_path, params, timeout,
                                          conv_criteria=params['conv_criteria'])"""
 
 
-
+        t0 = time.time()
         df_eq_distr= single_temp(init_code, params['p'], params['steps'])
         df_eq_distr1 = np.array(df_eq_distr)
-
+        t1 = time.time()
         df_eq_distr = STDC(init_code, size = params['size'], p_error = params['p'], p_sampling = params['p'], steps=params['steps'])
         df_eq_distr2 = np.array(df_eq_distr)
-
+        t2 = time.time()
         df_eq_distr = STRC(init_code, size = init_code.system_size, p_error = params['p'], p_sampling= params['p'], steps=params['steps'])
         df_eq_distr3 = np.array(df_eq_distr)
-
+        t3 = time.time()
         df_eq_distr = PTEQ(init_code, params['p'], steps = params['steps'])
         df_eq_distr0 = np.array(df_eq_distr)
-
+        t4 = time.time()
         df_eq_distr = STDC_rain(init_code, init_code.system_size, params['p'], steps = params['steps'])
         df_eq_distr4 = np.array(df_eq_distr)
-
-        df_eq_distr = STRC_rain(init_code, size = params['size'], p_error = params['p'], p_sampling=params['p'], droplets=10, steps=params['steps'])
+        t5 = time.time()
+        df_eq_distr = STRC_rain(init_code, size = params['size'], p_error = params['p'], p_sampling=params['p'], steps=params['steps'])
         df_eq_distr5 = np.array(df_eq_distr)
+        t6 = time.time()
 
+        print("ST: " , t1-t0, "STDC: ", t2-t1, "STRC: ", t3-t2, "PTEQ: ", t4-t3, "STDC_rain: ", t5-t4, "STRC_rain: ",t6-t5)
 
         #else:
         #    raise ValueError('Invalid method, use "PTEC", "STDC" or "ST".')
@@ -162,7 +164,7 @@ if __name__ == '__main__':
     # All paramteters for data generation is set here,
     # some of which may be irrelevant depending on the choice of others
     t_start = time.time()
-    nbr_datapoints = 300
+    nbr_datapoints = 200
 
 
 
@@ -181,7 +183,7 @@ if __name__ == '__main__':
     params = {'size': int(array_id),
               'p': 0.05,
               'Nc': 9,
-              'steps': 200, #int((10000 * (int(array_id)/5)**4)/100)*100,
+              'steps': 1500, #int((10000 * (int(array_id)/5)**4)/100)*100,
               'iters': 10,
               'conv_criteria': 'error_based',
               'SEQ': 7,
@@ -227,7 +229,8 @@ if __name__ == '__main__':
         for j in range(len(success_rate)):
             success_rate[j] = np.sum(success[:, j])/(len(success[:, j]))
         print(success_rate, 'success_rate', method)
-        line = plt.plot(success_rate, label = method)
+        x = np.linspace(0, int(params['steps']) , len(success_rate))
+        line = plt.plot(x, success_rate, label = method)
 
     print("num steps", params['steps'])
     plt.legend()

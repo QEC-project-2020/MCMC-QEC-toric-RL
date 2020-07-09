@@ -25,7 +25,7 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=1000
     # System size is determined from init_code
     size = init_code.system_size
 
-    num_points = 100 #number of data points in eq steps graph
+    num_points = 30 #number of data points in eq steps graph
 
 
     # either 4 or 16 depending on choice of code topology
@@ -154,7 +154,7 @@ def single_temp(init_code, p, max_iters):
     ladder = [] # list of chain objects
     nbr_errors_chain = np.zeros((nbr_eq_classes, max_iters))
 
-    num_points = 100
+    num_points = 10
     freq = int(max_iters/num_points)
     mean_array = np.zeros((nbr_eq_classes, num_points-1))
     counter = 0
@@ -187,7 +187,7 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000):
     qubitlist = [{},{},{},{}]
 
 
-    num_points = 50
+    num_points = 30
     #raindrops = 10 #int(steps/100)
 
     freq = int(steps/num_points)
@@ -219,7 +219,7 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000):
                 #    chain_list[eq].code.qubit_matrix = chain_list[eq].code.apply_stabilizers_uniform()
                 chain_list[eq].update_chain(5)
                 # add to dict (only gets added if it is new)
-                qubitlist[eq][chain.code.qubit_matrix.tostring()] = np.count_nonzero(chain_list[eq].code.qubit_matrix)
+                qubitlist[eq][chain_list[eq].code.qubit_matrix.tostring()] = np.count_nonzero(chain_list[eq].code.qubit_matrix)
 
             # compute Z_E
             #print(eqdistr[eq, counter],'here')
@@ -248,8 +248,7 @@ def STDC_droplet(input_data_tuple):
 
     return samples
 
-
-def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
+def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000):
     # set p_sampling equal to p_error by default
     p_sampling = p_sampling or p_error
 
@@ -264,7 +263,7 @@ def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=10, steps=2000
 
     # Z_E will be saved in eqdistr
 
-    num_points = 100
+    num_points = 30
     #raindrops = 10 #int(steps/100)
 
     freq = int(steps/num_points)
@@ -286,7 +285,9 @@ def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=10, steps=2000
         for i in range(num_points):
             for eq in range(nbr_eq_classes):
                 # go to class eq and apply stabilizers
-                output = pool.map(STDC_droplet, [(chain_list[eq], int(steps/num_points), flag) for _ in range(droplets)])
+                if droplets == 1:
+                    output = STDC_droplet((chain_list[eq], int(steps/num_points), flag))
+                else: output = pool.map(STDC_droplet, [(chain_list[eq], int(steps/num_points), flag) for _ in range(droplets)])
                 for j in range(droplets):
                     qubitlist[eq].update(output[j])
                 flag = False
@@ -298,7 +299,10 @@ def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=10, steps=2000
     # Retrun normalized eq_distr
     return eqdistr
 
-def STRC_rain(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
+
+
+
+def STRC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000):
     # set p_sampling equal to p_error by default
     p_sampling = p_sampling or p_error
 
@@ -306,7 +310,7 @@ def STRC_rain(init_code, size, p_error, p_sampling=None, droplets=10, steps=2000
     nbr_eq_classes = init_code.nbr_eq_classes
 
     #number of data points for plot
-    num_points = 100
+    num_points = 30
 
     # Create chain with p_sampling, this is allowed since N(n) is independet of p.
     #chain = Chain(size, p_sampling, copy.deepcopy(init_code))
@@ -325,8 +329,6 @@ def STRC_rain(init_code, size, p_error, p_sampling=None, droplets=10, steps=2000
     counts  = 0
     total_counts = 0
 
-
-
     # error model
     beta_error = -log((p_error / 3) / (1 - p_error))
     beta_sampling = -log((p_sampling / 3) / (1 - p_sampling))
@@ -338,37 +340,45 @@ def STRC_rain(init_code, size, p_error, p_sampling=None, droplets=10, steps=2000
     # Largest possible chain length
     max_length = 2 * size ** 2
 
-    short_stats_list = [[{max_length, 0} for _ in range(2)],
-                        [{max_length, 0} for _ in range(2)],
-                        [{max_length, 0} for _ in range(2)],
-                        [{max_length, 0} for _ in range(2)]]
+    short_stats_list = [[{} for _ in range(2)],
+                        [{} for _ in range(2)],
+                        [{} for _ in range(2)],
+                        [{} for _ in range(2)]]
+
 
     flag = True # Determines if apply uniform stabilizers
 
     shortest = np.ones((nbr_eq_classes)) * max_length
     next_shortest = np.ones((nbr_eq_classes)) * max_length
-
     # Iterate through equivalence classes
     with Pool(droplets) as pool:
         for stages in range(num_points):
             for eq in range(nbr_eq_classes):
                 short_unique = short_stats_list[eq]
                 # Start parallel processes with droplets.
-                output = pool.map(STRC_droplet, [(chain_list[eq], int(steps/num_points), shortest[eq], next_shortest[eq], eq, flag) for _ in range(droplets)])
+                if droplets == 1:
+                    unique_lengths_i, len_counts_i, short_unique_i, _,_ = STRC_droplet((chain_list[eq], int(steps/num_points), max_length, copy.deepcopy(short_unique), copy.deepcopy(len_counts[eq]), copy.deepcopy(unique_lengths[eq]), eq, flag))
+                else:
+                    output = pool.map(STRC_droplet, [(chain_list[eq], int(steps/num_points), max_length, eq, flag) for _ in range(droplets)])
                 flag = False
+
+                #print(eq, short_unique[0].values())
                 # Find shortest and next shortest length found by any chain
                 for i in range(droplets):
-                    _,_,data = output[i]
-                    if rand.choice(list(data[0].values())) < shortest[eq]:
+                    if droplets > 1:
+                        _,_,data, _, _ = output[i]
+                    elif droplets == 1:
+                        data = short_unique_i
+                    if list(data[0].values())[0] < shortest[eq]:
                         next_shortest[eq] = shortest[eq]
-                        shortest[eq] = rand.choice(list(data[0].values()))
-                    if rand.choice(list(data[1].values())) < next_shortest[eq]:
-                        next_shortest[eq] = rand.choice(list(data[1].values()))
+                        shortest[eq] = list(data[0].values())[0]
+                    if list(data[1].values())[0] < next_shortest[eq]:
+                        next_shortest[eq] = list(data[1].values())[0]
 
                 # Add data from each droplet to the combined dataset
                 for i in range(droplets):
                     # Unpack results
-                    unique_lengths_i, len_counts_i, short_unique_i = output[i]
+                    if droplets > 1: unique_lengths_i, len_counts_i, short_unique_i,_,_ = output[i]
 
                     # Combine unique lengths ( not really needed? )
                     unique_lengths[eq].update(unique_lengths_i)
@@ -381,14 +391,32 @@ def STRC_rain(init_code, size, p_error, p_sampling=None, droplets=10, steps=2000
                             len_counts[eq][key] = len_counts_i[key]
 
                     # Combine the sets of shortest and next shortest chains
-                    shortest_i = rand.choice(list(short_unique_i[0].values()))
-                    next_shortest_i = rand.choice(list(short_unique_i[1].values()))
+                    shortest_i = list(short_unique_i[0].values())[0]
+                    next_shortest_i = list(short_unique_i[1].values())[0]
 
                     if shortest_i == shortest[eq]:
                         short_unique[0].update(short_unique_i[0])
                     if shortest_i == next_shortest[eq]:
                         short_unique[1].update(short_unique_i[0])
                     if next_shortest_i == next_shortest[eq]:
+                        short_unique[1].update(short_unique_i[1])
+
+                    if shortest_i < shortest[eq]:
+                        next_shortest[eq] = shortest[eq]
+                        shortest[eq] = shortest_i
+                        short_unique[1].clear()
+                        short_unique[1].update(short_unique[0])
+                        short_unique[0].clear()
+                        short_unique[0].update(short_unique_i[0])
+
+                    elif shortest_i < next_shortest[eq]:
+                        next_shortest[eq] = shortest_i
+                        short_unique[1].clear()
+                        short_unique[1].update(short_unique_i[1])
+
+                    if next_shortest_i < next_shortest[eq]:
+                        next_shortest[eq] = next_shortest_i
+                        short_unique[1].clear()
                         short_unique[1].update(short_unique_i[1])
 
                 # Partial result needed for boltzmann factor
@@ -411,23 +439,27 @@ def STRC_rain(init_code, size, p_error, p_sampling=None, droplets=10, steps=2000
             counts+=1
     return Z_arr
 
-def STRC_droplet(input_data_tuple):
-    chain, steps, max_length, next_shortest, eq, flag = input_data_tuple
 
+def STRC_droplet(input_data_tuple):
+    chain, steps, max_length, eq, flag = input_data_tuple
     unique_lengths = {}
     len_counts = {}
+    short_unique = [{} for _ in range(2)] #short_unique
+    #len_counts = len_counts
+    #unique_lengths = unique_lengths
 
     # List of unique shortest and next shortets chains
-    short_unique = [{} for _ in range(2)]
     short_unique[0]['temp'] = max_length
-    short_unique[1]['temp'] = next_shortest
+    short_unique[1]['temp'] = max_length
 
     # Variables to easily keep track of the length of chains in short_unique
     shortest = max_length
-    next_shortest = next_shortest
+    next_shortest = max_length
 
     # Apply random stabilizers to start in high temperature state
-    if flag == True: chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
+    if flag == True:
+        chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
+
     # Apply logical operators to get qubit_matrix into equivalence class eq
     #chain.code.qubit_matrix = chain.code.to_class(eq)
 
@@ -450,7 +482,6 @@ def STRC_droplet(input_data_tuple):
             length = chain.code.count_errors()
             # Store number of observations and length of this chain
             unique_lengths[key] = length
-
             # Check if this length has been seen before
             if length in len_counts:
                 len_counts[unique_lengths[key]] += 1
@@ -479,6 +510,7 @@ def STRC_droplet(input_data_tuple):
                     short_unique[1].update(short_unique[0])
                     # And the current length is the new shortest
                     short_unique[0].clear()
+
                     short_unique[0][key] = length
 
                 # Otherwise, check if this chain is shorter than previous next shortest chain
@@ -490,11 +522,11 @@ def STRC_droplet(input_data_tuple):
                     short_unique[1].clear()
                     short_unique[1][key] = length
 
-    return unique_lengths, len_counts, short_unique
+    return  unique_lengths, len_counts, short_unique, next_shortest,  shortest #unique_lengths, len_counts, short_unique
 
 def STRC(init_code, size, p_error, p_sampling=None, steps=20000):
     nbr_eq_classes = init_code.nbr_eq_classes
-    num_points = 100
+    num_points = 30
     #raindrops = 10 #int(steps/100)
 
     p_sampling = p_sampling or p_error
