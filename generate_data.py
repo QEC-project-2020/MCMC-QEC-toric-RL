@@ -84,7 +84,8 @@ def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**
         df_eq_distr = PTEQ(init_code, params['p'], steps = params['steps'])
         df_eq_distr0 = np.array(df_eq_distr)
         t4 = time.time()
-        df_eq_distr = STDC_rain(init_code, init_code.system_size, params['p'], steps = params['steps'])
+        #STDC does not show improvement with increased p_sampling
+        df_eq_distr = STDC_rain(init_code, init_code.system_size, params['p'], droplets = params['raindrops'], steps = params['steps'])
         df_eq_distr4 = np.array(df_eq_distr)
         t5 = time.time()
         #df_eq_distr = STRC_rain(init_code, size = params['size'], p_error = params['p'], p_sampling=params['p_sampling'], steps=params['steps'])
@@ -160,9 +161,7 @@ if __name__ == '__main__':
     # All paramteters for data generation is set here,
     # some of which may be irrelevant depending on the choice of others
     t_start = time.time()
-    nbr_datapoints = 200
-
-
+    nbr_datapoints = 20
 
     method="STDC"
 
@@ -177,20 +176,21 @@ if __name__ == '__main__':
         timeout = 100000000000
         print('invalid sysargs')
     params = {'size': int(array_id),
-              'p': 0.05,
+              'p': 0.1,
               'Nc': 9,
-              'steps': 30000, #int((20000 * (int(array_id)/5)**4)/100)*100,
+              'steps': 20000, #int((20000 * (int(array_id)/5)**4)/100)*100,
               'iters': 10,
               'conv_criteria': 'error_based',
               'SEQ': 7,
               'TOPS': 10,
               'eps': 0.005,
-              'p_sampling': 0.25}
+              'p_sampling': 0.25,
+              'raindrops': 5}
     now = datetime.now()
     timestamp = str(datetime.timestamp(now))
     print("timestamp =", timestamp)
 
-    file_path = os.path.join(local_dir, 'data_' + array_id + '_' + str(params['steps']) + '_' + str(params['p']) + '_' + str(params['size']) + '_' + 'avg' + str(nbr_datapoints) + '_' +  timestamp + '.xz')
+    file_path = os.path.join(local_dir, 'data_' + array_id + '_' + str(params['steps']) + '_' + str(params['p']) + '_' + str(params['size']) + '_' + 'avg' + str(nbr_datapoints) + '_psample' + str(params['p_sampling'])+ '_' + str(params['raindrops']) + '_'+  timestamp + '.xz')
 
 
     # Generate data
@@ -225,10 +225,14 @@ if __name__ == '__main__':
         for j in range(len(success_rate)):
             success_rate[j] = np.sum(success[:, j])/(len(success[:, j]))
         print(success_rate, 'success_rate', method)
-        x = np.linspace(0, int(params['steps']) , len(success_rate))
+        if method == "STRC_rain" or method == "STDC_rain":
+            x = np.linspace(0, int(params['steps']*params['raindrops']) , len(success_rate))
+        else:
+            x = np.linspace(0, int(params['steps']) , len(success_rate))
         line = plt.plot(x, success_rate, label = method)
 
     print("num steps", params['steps'])
+    plt.xlim(0, params['steps'])
     plt.legend()
 
     PATH = './steps_graphs/'
@@ -236,7 +240,7 @@ if __name__ == '__main__':
     timestamp = str(datetime.timestamp(now))
     print("timestamp =", timestamp)
 
-    filename = './steps_graphs/' + str(params['steps']) + '_' + str(params['p']) + '_' + str(params['size']) + '_' + timestamp + '.png'
+    filename = './steps_graphs/' + 'size_' + array_id + '_' + str(params['steps']) + '_' + str(params['p']) + '_' + str(params['size']) + '_' + 'avg' + str(nbr_datapoints) + '_psample' + str(params['p_sampling'])+ '_' + str(params['raindrops']) + '_'+  timestamp+ '.png'
     plt.savefig(filename)
     plt.show()
 

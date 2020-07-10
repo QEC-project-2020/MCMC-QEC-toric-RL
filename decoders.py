@@ -25,7 +25,7 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=1000
     # System size is determined from init_code
     size = init_code.system_size
 
-    num_points = 100 #number of data points in eq steps graph
+    num_points = 10 #number of data points in eq steps graph
 
 
     # either 4 or 16 depending on choice of code topology
@@ -153,7 +153,7 @@ def single_temp(init_code, p, max_iters):
     ladder = [] # list of chain objects
     nbr_errors_chain = np.zeros((nbr_eq_classes, max_iters))
 
-    num_points = 100
+    num_points = 10
     freq = int(max_iters/num_points)
     mean_array = np.zeros((nbr_eq_classes, num_points-1))
     counter = 0
@@ -186,7 +186,7 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000):
     qubitlist = [{},{},{},{}]
 
 
-    num_points = 100
+    num_points = 10
     #raindrops = 10 #int(steps/100)
 
     freq = int(steps/num_points)
@@ -331,7 +331,7 @@ def STRC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000
     nbr_eq_classes = init_code.nbr_eq_classes
 
     #number of data points for plot
-    num_points = 100
+    num_points = 10
 
     # Create chain with p_sampling, this is allowed since N(n) is independet of p.
     #chain = Chain(size, p_sampling, copy.deepcopy(init_code))
@@ -546,7 +546,7 @@ def STRC_droplet(input_data_tuple):
 
 def STRC(init_code, size, p_error, p_sampling=None, steps=20000):
     nbr_eq_classes = init_code.nbr_eq_classes
-    num_points = 100
+    num_points = 10
     #raindrops = 10 #int(steps/100)
 
     p_sampling = p_sampling or p_error
