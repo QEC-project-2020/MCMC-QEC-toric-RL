@@ -70,29 +70,31 @@ def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**
                                          iters=params['iters'],
                                          conv_criteria=params['conv_criteria'])"""
 
+        if params['mwpm_start'] == True:
+            init_code_list = class_sorted_mwpm(init_code)
 
         t0 = time.time()
-        df_eq_distr= single_temp(init_code, params['p'], params['steps'])
+        df_eq_distr= single_temp(init_code, params['p'], params['steps'], mwpm_start = params['mwpm_start'])
         df_eq_distr1 = np.array(df_eq_distr)
         t1 = time.time()
-        df_eq_distr = STDC(init_code, size = params['size'], p_error = params['p'], p_sampling = params['p_sampling'], steps=params['steps'])
-        df_eq_distr2 = np.array(df_eq_distr)
-        t2 = time.time()
-        df_eq_distr = STRC(init_code, size = init_code.system_size, p_error = params['p'], p_sampling= params['p_sampling'], steps=params['steps'])
+        #df_eq_distr = STDC(init_code, size = params['size'], p_error = params['p'], p_sampling = params['p_sampling'], steps=params['steps'], mwpm_start = params['mwpm_start'])
+        #df_eq_distr2 = np.array(df_eq_distr)
+        #t2 = time.time()
+        df_eq_distr = STRC(init_code, size = init_code.system_size, p_error = params['p'], p_sampling= params['p_sampling'], steps=params['steps'], mwpm_start =  params['mwpm_start'])
         df_eq_distr3 = np.array(df_eq_distr)
-        t3 = time.time()
-        df_eq_distr = PTEQ(init_code, params['p'], steps = params['steps'])
-        df_eq_distr0 = np.array(df_eq_distr)
-        t4 = time.time()
+        #t3 = time.time()
+        #df_eq_distr = PTEQ(init_code, params['p'], steps = params['steps'])
+        #df_eq_distr0 = np.array(df_eq_distr)
+        #t4 = time.time()
         #STDC does not show improvement with increased p_sampling
-        df_eq_distr = STDC_rain(init_code, init_code.system_size, params['p'], droplets = params['raindrops'], steps = params['steps'])
-        df_eq_distr4 = np.array(df_eq_distr)
-        t5 = time.time()
+        #df_eq_distr = STDC_rain(init_code, init_code.system_size, params['p_sampling'], droplets = params['raindrops'], steps = int(params['steps']/params['raindrops']),  mwpm_start =  params['mwpm_start'])
+        #df_eq_distr4 = np.array(df_eq_distr)
+        #t5 = time.time()
         #df_eq_distr = STRC_rain(init_code, size = params['size'], p_error = params['p'], p_sampling=params['p_sampling'], steps=params['steps'])
         #df_eq_distr5 = np.array(df_eq_distr)
         #t6 = time.time()
 
-        print("ST: " , t1-t0, "STDC: ", t2-t1, "STRC: ", t3-t2, "PTEQ: ", t4-t3, "STDC_rain: ", t5-t4)#, "STRC_rain: ",t6-t5)
+        #print("ST: " , t1-t0, "STDC: ", t2-t1, "STRC: ", t3-t2, "PTEQ: ", t4-t3, "STDC_rain: ", t5-t4)#, "STRC_rain: ",t6-t5)
 
         #else:
         #    raise ValueError('Invalid method, use "PTEC", "STDC" or "ST".')
@@ -120,16 +122,16 @@ def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**
         # Add data to Dataframes
         #df_qubit = pd.DataFrame(df_qubit.astype(np.uint8), index=index_qubit,
                                 #columns=['data'])
-        df_eq_distr0 = (df_eq_distr0.transpose()).tolist()
+        #df_eq_distr0 = (df_eq_distr0.transpose()).tolist()
         df_eq_distr1 = (df_eq_distr1.transpose()).tolist() #  = df_eq_distr.reshape((-1))
-        df_eq_distr2 = (df_eq_distr2.transpose()).tolist()
+        #df_eq_distr2 = (df_eq_distr2.transpose()).tolist()
         df_eq_distr3 = (df_eq_distr3.transpose()).tolist()
-        df_eq_distr4 = (df_eq_distr4.transpose()).tolist()
+        #df_eq_distr4 = (df_eq_distr4.transpose()).tolist()
         #df_eq_distr5 = (df_eq_distr5.transpose()).tolist()
         #steps = i*params['steps']
 
-        df_entry = pd.DataFrame([[df_qubit, df_eq_distr0, df_eq_distr1, df_eq_distr2, df_eq_distr3, df_eq_distr4]], columns = ['data', 'eq_steps_PTEQ' , 'eq_steps_ST', 'eq_steps_STDC','eq_steps_STRC', 'eq_steps_STDC_rain']) #['data'])
-
+        #df_entry = pd.DataFrame([[df_qubit, df_eq_distr0, df_eq_distr1, df_eq_distr2, df_eq_distr3, df_eq_distr4]], columns = ['data', 'eq_steps_PTEQ' , 'eq_steps_ST', 'eq_steps_STDC','eq_steps_STRC', 'eq_steps_STDC_rain']) #['data'])
+        df_entry = pd.DataFrame([[df_qubit,  df_eq_distr1, df_eq_distr3]], columns = ['data', 'eq_steps_ST','eq_steps_STRC']) #['data'])
         # Add dataframes to temporary list to shorten computation time
 
         #df_list.append(df_qubit)
@@ -138,7 +140,7 @@ def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**
         # Every x iteration adds data to data file from temporary list
         # and clears temporary list
 
-        if (i + 1) % 10 == 0:
+        if (i + 1) % 10000== 0:
             df = df.append(df_list, ignore_index = True)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
@@ -161,9 +163,11 @@ if __name__ == '__main__':
     # All paramteters for data generation is set here,
     # some of which may be irrelevant depending on the choice of others
     t_start = time.time()
-    nbr_datapoints = 20
+    nbr_datapoints = 1000
 
-    method="STDC"
+    method="STDC"#remove
+
+    mwpm_start = True
 
     # Get job array id, set working directory, set timer
     try:
@@ -176,16 +180,17 @@ if __name__ == '__main__':
         timeout = 100000000000
         print('invalid sysargs')
     params = {'size': int(array_id),
-              'p': 0.1,
+              'p': 0.05,
               'Nc': 9,
-              'steps': 20000, #int((20000 * (int(array_id)/5)**4)/100)*100,
+              'steps': 1000, #int((20000 * (int(array_id)/5)**4)/100)*100, Needs to divide number of data poins
               'iters': 10,
               'conv_criteria': 'error_based',
               'SEQ': 7,
               'TOPS': 10,
               'eps': 0.005,
               'p_sampling': 0.25,
-              'raindrops': 5}
+              'raindrops': 4,
+              'mwpm_start': mwpm_start}
     now = datetime.now()
     timestamp = str(datetime.timestamp(now))
     print("timestamp =", timestamp)
@@ -194,7 +199,8 @@ if __name__ == '__main__':
 
 
     # Generate data
-    methods = ["PTEQ", "ST", "STDC", "STRC", "STDC_rain"]
+    #methods = ["PTEQ", "ST", "STDC", "STRC", "STDC_rain"]
+    methods = ["ST","STRC"]
     generate(file_path, params, timeout, method=method, nbr_datapoints = nbr_datapoints)
     unpickled_df  = pickle_reader(file_path)
     qubits = unpickled_df['data'].to_numpy()
@@ -226,10 +232,11 @@ if __name__ == '__main__':
             success_rate[j] = np.sum(success[:, j])/(len(success[:, j]))
         print(success_rate, 'success_rate', method)
         if method == "STRC_rain" or method == "STDC_rain":
-            x = np.linspace(0, int(params['steps']*params['raindrops']) , len(success_rate))
+            x = np.linspace(0, int(params['steps']), len(success_rate))
         else:
             x = np.linspace(0, int(params['steps']) , len(success_rate))
         line = plt.plot(x, success_rate, label = method)
+        plt.hlines(np.amax(success_rate), 0, int(params['steps']), linestyles='dotted')
 
     print("num steps", params['steps'])
     plt.xlim(0, params['steps'])
