@@ -39,6 +39,15 @@ def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**
 
     df_list = []  # Initiate temporary list
 
+    #counts number of logical errors for each algorithm
+    logical_error_counter_ST = 0
+    logical_error_counter_STDC = 0
+    logical_error_counter_STRC = 0
+    logical_error_counter_STDC_rain = 0
+    logical_error_counter_STRC_rain = 0
+
+    logical_error_limit = params['logical_error_limit']
+
     # Loop to generate data points
     for i in np.arange(nbr_to_generate) + nbr_existing_data:
 
@@ -53,85 +62,131 @@ def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**
         init_code = Planar_code(params['size'])
         init_code.generate_random_error(params['p'])
         start_code = copy.deepcopy(init_code)
-
-
-        #randomize input matrix, no trace of seed.
-        init_code.qubit_matrix, _ = init_code.apply_random_logical()
-        init_code.qubit_matrix = init_code.apply_stabilizers_uniform() # fix so all uses these
-
-
-        #print(start_code.qubit_matrix, "Here1")
-        #print(init_code.qubit_matrix, "Here2")
-
-        # Generate data for DataFrame storage  OBS now using full bincount, change this
-        """if method == "PTEC":
-            df_eq_distr, _, _ = parallel_tempering(init_code, params['Nc'],
-                                         p=params['p'], steps=params['steps'],
-                                         iters=params['iters'],
-                                         conv_criteria=params['conv_criteria'])"""
-
-        if params['mwpm_start'] == True:
-            init_code_list = class_sorted_mwpm(init_code)
-
-        t0 = time.time()
-        df_eq_distr= single_temp(init_code, params['p'], params['steps'], mwpm_start = params['mwpm_start'])
-        df_eq_distr1 = np.array(df_eq_distr)
-        t1 = time.time()
-        #df_eq_distr = STDC(init_code, size = params['size'], p_error = params['p'], p_sampling = params['p_sampling'], steps=params['steps'], mwpm_start = params['mwpm_start'])
-        #df_eq_distr2 = np.array(df_eq_distr)
-        #t2 = time.time()
-        df_eq_distr = STRC(init_code, size = init_code.system_size, p_error = params['p'], p_sampling= params['p_sampling'], steps=params['steps'], mwpm_start =  params['mwpm_start'])
-        df_eq_distr3 = np.array(df_eq_distr)
-        #t3 = time.time()
-        #df_eq_distr = PTEQ(init_code, params['p'], steps = params['steps'])
-        #df_eq_distr0 = np.array(df_eq_distr)
-        #t4 = time.time()
-        #STDC does not show improvement with increased p_sampling
-        #df_eq_distr = STDC_rain(init_code, init_code.system_size, params['p_sampling'], droplets = params['raindrops'], steps = int(params['steps']/params['raindrops']),  mwpm_start =  params['mwpm_start'])
-        #df_eq_distr4 = np.array(df_eq_distr)
-        #t5 = time.time()
-        #df_eq_distr = STRC_rain(init_code, size = params['size'], p_error = params['p'], p_sampling=params['p_sampling'], steps=params['steps'])
-        #df_eq_distr5 = np.array(df_eq_distr)
-        #t6 = time.time()
-
-        #print("ST: " , t1-t0, "STDC: ", t2-t1, "STRC: ", t3-t2, "PTEQ: ", t4-t3, "STDC_rain: ", t5-t4)#, "STRC_rain: ",t6-t5)
-
-        #else:
-        #    raise ValueError('Invalid method, use "PTEC", "STDC" or "ST".')
-
-        # Generate data for DataFrame storage  OBS now using full bincount, change this
-
-        #print((df_eq_distr.transpose()).tolist(), 'df_eq_distr')
-
-        #df_eq_distr = #(df_eq_distr.transpose()).tolist()
-
-        # Flatten initial qubit matrix to store in dataframe
         df_qubit = start_code.qubit_matrix.tolist()
 
-        # Create indices for generated data
-        names = ['data_nr', 'layer', 'x', 'y']
-
-        """index_qubit = pd.MultiIndex.from_product([[i], np.arange(2),
-                                                 np.arange(params['size']),
-                                                 np.arange(params['size'])],
-                                                 names=names)
-        index_distr = pd.MultiIndex.from_product([[i], [2], [0],
-                                                 [0]], names=names)"""
+        if np.count_nonzero(init_code.qubit_matrix) > -1: #(params['size']+1)/2:
+            #randomize input matrix, no trace of seed.
+            init_code.qubit_matrix, _ = init_code.apply_random_logical()
+            init_code.qubit_matrix = init_code.apply_stabilizers_uniform() # fix so all uses these
 
 
-        # Add data to Dataframes
-        #df_qubit = pd.DataFrame(df_qubit.astype(np.uint8), index=index_qubit,
-                                #columns=['data'])
-        #df_eq_distr0 = (df_eq_distr0.transpose()).tolist()
-        df_eq_distr1 = (df_eq_distr1.transpose()).tolist() #  = df_eq_distr.reshape((-1))
-        #df_eq_distr2 = (df_eq_distr2.transpose()).tolist()
-        df_eq_distr3 = (df_eq_distr3.transpose()).tolist()
-        #df_eq_distr4 = (df_eq_distr4.transpose()).tolist()
-        #df_eq_distr5 = (df_eq_distr5.transpose()).tolist()
-        #steps = i*params['steps']
+            #print(start_code.qubit_matrix, "Here1")
+            #print(init_code.qubit_matrix, "Here2")
+
+            # Generate data for DataFrame storage  OBS now using full bincount, change this
+            """if method == "PTEC":
+                df_eq_distr, _, _ = parallel_tempering(init_code, params['Nc'],
+                                             p=params['p'], steps=params['steps'],
+                                             iters=params['iters'],
+                                             conv_criteria=params['conv_criteria'])"""
+
+
+            t0 = time.time()
+            if logical_error_counter_ST < logical_error_limit:
+                df_eq_distr= single_temp(init_code, params['p'], params['steps'], mwpm_start = params['mwpm_start'])
+                df_eq_distr1 = np.array(df_eq_distr)
+                if np.argmin(df_eq_distr1[:,-1]) != start_code.define_equivalence_class():
+
+                    logical_error_counter_ST+=1
+            else:
+                #print("ST logical error limit reached")
+                df_eq_distr= single_temp(init_code, params['p'], params['steps'], mwpm_start = params['mwpm_start'])
+                df_eq_distr1 = np.array(df_eq_distr)
+
+            """t1 = time.time()
+            #df_eq_distr = STDC(init_code, size = params['size'], p_error = params['p'], p_sampling = params['p_sampling'], steps=params['steps'], mwpm_start = params['mwpm_start'])
+            #df_eq_distr2 = np.array(df_eq_distr)
+            #t2 = time.time()
+            if logical_error_counter_STRC < logical_error_limit:
+                df_eq_distr = STRC(init_code, size = init_code.system_size, p_error = params['p'], p_sampling= params['p_sampling'], steps=params['steps'], mwpm_start =  params['mwpm_start'])
+                df_eq_distr3 = np.array(df_eq_distr)
+                if np.argmax(df_eq_distr3[:,-1]) != start_code.define_equivalence_class():
+                    logical_error_counter_STRC+=1
+            else:
+                #print("STRC logical error limit reached")
+                df_eq_distr = STRC(init_code, size = init_code.system_size, p_error = params['p'], p_sampling= params['p_sampling'], steps=params['steps'], mwpm_start =  params['mwpm_start'])
+                df_eq_distr3 = np.array(df_eq_distr)"""
+            #t3 = time.time()
+            #df_eq_distr = PTEQ(init_code, params['p'], steps = params['steps'])
+            #df_eq_distr0 = np.array(df_eq_distr)
+            #t4 = time.time()
+            #STDC does not show improvement with increased p_sampling
+
+            """if logical_error_counter_STDC_rain < logical_error_limit:
+                df_eq_distr = STDC_rain(init_code, init_code.system_size, params['p_sampling'], droplets = params['raindrops'], steps = int(params['steps']/params['raindrops']),  mwpm_start =  params['mwpm_start'])
+                df_eq_distr4 = np.array(df_eq_distr)
+                print(np.argmax(df_eq_distr4[:,-1]))
+                if np.argmax(df_eq_distr4[:,-1]) != start_code.define_equivalence_class():
+                    logical_error_counter_STDC_rain+=1
+            else:
+                #print("STDC_rain logical error limit reached")
+                df_eq_distr = STDC_rain(init_code, init_code.system_size, params['p_sampling'], droplets = params['raindrops'], steps = int(params['steps']/params['raindrops']),  mwpm_start =  params['mwpm_start'])
+                df_eq_distr4 = np.array(df_eq_distr)"""
+
+            if all(x >= logical_error_limit for x in [logical_error_counter_STDC_rain, logical_error_counter_STRC, logical_error_counter_ST]):
+                print("Logical error limit reached for all algorithms")
+                break
+            else: print([logical_error_counter_STDC_rain, logical_error_counter_ST, logical_error_counter_STRC])
+
+            #t5 = time.time()
+            #df_eq_distr = STRC_rain(init_code, size = params['size'], p_error = params['p'], p_sampling=params['p_sampling'], steps=params['steps'])
+            #df_eq_distr5 = np.array(df_eq_distr)
+            #t6 = time.time()
+
+            t0 = time.time()
+            df_eq_distr = STDC_rain_fast(init_code, init_code.system_size, params['p_sampling'], droplets = params['raindrops'], steps = int(params['steps']/params['raindrops']),  mwpm_start =  params['mwpm_start'])
+            df_eq_distr6 = np.array(df_eq_distr)
+            print(time.time()-t0)
+
+            #print("ST: " , t1-t0, "STDC: ", t2-t1, "STRC: ", t3-t2, "PTEQ: ", t4-t3, "STDC_rain: ", t5-t4)#, "STRC_rain: ",t6-t5)
+
+            #else:
+            #    raise ValueError('Invalid method, use "PTEC", "STDC" or "ST".')
+
+            # Generate data for DataFrame storage  OBS now using full bincount, change this
+
+            #print((df_eq_distr.transpose()).tolist(), 'df_eq_distr')
+
+            #df_eq_distr = #(df_eq_distr.transpose()).tolist()
+
+            # Flatten initial qubit matrix to store in dataframe
+
+            # Create indices for generated data
+            names = ['data_nr', 'layer', 'x', 'y']
+
+
+            # Add data to Dataframes
+            #df_qubit = pd.DataFrame(df_qubit.astype(np.uint8), index=index_qubit,
+                                    #columns=['data'])
+            #df_eq_distr0 = (df_eq_distr0.transpose()).tolist()
+            df_eq_distr1 = (df_eq_distr1.transpose()).tolist() #  = df_eq_distr.reshape((-1))
+            #df_eq_distr2 = (df_eq_distr2.transpose()).tolist()
+            #df_eq_distr3 = (df_eq_distr3.transpose()).tolist()
+            #df_eq_distr4 = (df_eq_distr4.transpose()).tolist()
+            #df_eq_distr5 = (df_eq_distr5.transpose()).tolist()
+            df_eq_distr6 = (df_eq_distr6.transpose()).tolist()
+            #steps = i*params['steps']
+        else:
+            df_eq_distr1 = np.ones((params['nbr_eq_classes']))
+            df_eq_distr1[start_code.define_equivalence_class()] = 0
+
+            df_eq_distr4 = np.zeros((params['nbr_eq_classes']))
+            df_eq_distr4[start_code.define_equivalence_class()] = 1
+
+            df_eq_distr3 = np.zeros((params['nbr_eq_classes']))
+            df_eq_distr3[start_code.define_equivalence_class()] = 1
+
+            df_eq_distr1 = (df_eq_distr1.transpose()).tolist() #  = df_eq_distr.reshape((-1))
+            #df_eq_distr2 = (df_eq_distr2.transpose()).tolist()
+            df_eq_distr3 = (df_eq_distr3.transpose()).tolist()
+            df_eq_distr4 = (df_eq_distr4.transpose()).tolist()
+            #df_eq_distr5 = (df_eq_distr5.transpose()).tolist()
+
+
+
 
         #df_entry = pd.DataFrame([[df_qubit, df_eq_distr0, df_eq_distr1, df_eq_distr2, df_eq_distr3, df_eq_distr4]], columns = ['data', 'eq_steps_PTEQ' , 'eq_steps_ST', 'eq_steps_STDC','eq_steps_STRC', 'eq_steps_STDC_rain']) #['data'])
-        df_entry = pd.DataFrame([[df_qubit,  df_eq_distr1, df_eq_distr3]], columns = ['data', 'eq_steps_ST','eq_steps_STRC']) #['data'])
+        df_entry = pd.DataFrame([[df_qubit,  df_eq_distr1, df_eq_distr6]], columns = ['data', 'eq_steps_ST',  'eq_steps_STDC_rain_fast']) #['data'])
         # Add dataframes to temporary list to shorten computation time
 
         #df_list.append(df_qubit)
@@ -140,7 +195,7 @@ def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**
         # Every x iteration adds data to data file from temporary list
         # and clears temporary list
 
-        if (i + 1) % 10000== 0:
+        if (i + 1) % 1000== 0:
             df = df.append(df_list, ignore_index = True)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
@@ -163,7 +218,7 @@ if __name__ == '__main__':
     # All paramteters for data generation is set here,
     # some of which may be irrelevant depending on the choice of others
     t_start = time.time()
-    nbr_datapoints = 1000
+    nbr_datapoints = 5000
 
     method="STDC"#remove
 
@@ -180,9 +235,9 @@ if __name__ == '__main__':
         timeout = 100000000000
         print('invalid sysargs')
     params = {'size': int(array_id),
-              'p': 0.05,
+              'p': 0.15,
               'Nc': 9,
-              'steps': 1000, #int((20000 * (int(array_id)/5)**4)/100)*100, Needs to divide number of data poins
+              'steps': 600, #int((20000 * (int(array_id)/5)**4)/100)*100, Needs to divide number of data poins
               'iters': 10,
               'conv_criteria': 'error_based',
               'SEQ': 7,
@@ -190,7 +245,9 @@ if __name__ == '__main__':
               'eps': 0.005,
               'p_sampling': 0.25,
               'raindrops': 4,
-              'mwpm_start': mwpm_start}
+              'mwpm_start': mwpm_start,
+              'logical_error_limit': 2000,
+              'nbr_eq_classes': 4}
     now = datetime.now()
     timestamp = str(datetime.timestamp(now))
     print("timestamp =", timestamp)
@@ -200,7 +257,7 @@ if __name__ == '__main__':
 
     # Generate data
     #methods = ["PTEQ", "ST", "STDC", "STRC", "STDC_rain"]
-    methods = ["ST","STRC"]
+    methods = ["ST","STDC_rain_fast"]
     generate(file_path, params, timeout, method=method, nbr_datapoints = nbr_datapoints)
     unpickled_df  = pickle_reader(file_path)
     qubits = unpickled_df['data'].to_numpy()
@@ -221,7 +278,7 @@ if __name__ == '__main__':
                 init_code.qubit_matrix = q
                 a =  init_code.define_equivalence_class()
                 # NB: if ST use argmin
-                if method == "STDC" or method == "STRC" or method == "PTEQ" or method == "STDC_rain" or method == "STRC_rain":
+                if method == "STDC" or method == "STRC" or method == "PTEQ" or method == "STDC_rain" or method == "STRC_rain" or method == "STDC_rain_fast":
                     if a == np.argmax(d):
                         success[i, j] = 1
                 elif method == "ST":
@@ -231,7 +288,7 @@ if __name__ == '__main__':
         for j in range(len(success_rate)):
             success_rate[j] = np.sum(success[:, j])/(len(success[:, j]))
         print(success_rate, 'success_rate', method)
-        if method == "STRC_rain" or method == "STDC_rain":
+        if method == "STRC_rain" or method == "STDC_rain"or method == "STDC_rain_fast":
             x = np.linspace(0, int(params['steps']), len(success_rate))
         else:
             x = np.linspace(0, int(params['steps']) , len(success_rate))
@@ -248,7 +305,7 @@ if __name__ == '__main__':
     print("timestamp =", timestamp)
 
     filename = './steps_graphs/' + 'size_' + array_id + '_' + str(params['steps']) + '_' + str(params['p']) + '_' + str(params['size']) + '_' + 'avg' + str(nbr_datapoints) + '_psample' + str(params['p_sampling'])+ '_' + str(params['raindrops']) + '_'+  timestamp+ '.png'
-    plt.savefig(filename)
+    #plt.savefig(filename)
     plt.show()
 
 

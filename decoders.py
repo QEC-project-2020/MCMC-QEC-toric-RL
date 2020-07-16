@@ -22,7 +22,7 @@ import random as rand
 # Original MCMC Parallel tempering method as descibed in high threshold paper
 # Parameters also adapted from that paper.
 
-NUM_POINTS = 1000
+NUM_POINTS = 100
 
 def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=1000000, iters=10, conv_criteria=None):
     # System size is determined from init_code
@@ -261,18 +261,8 @@ def STDC_droplet(input_data_tuple):
 
 
     # Start in high energy state
-    if flag == True:
-        #print(chain.code.define_equivalence_class())
-        mwpm_start = False
-        if mwpm_start == True and chain.code.define_equivalence_class() == 3:
-            print("here")
-            print(chain.code.define_equivalence_class())
-            #print(chain.code.define_equivalence_class())
-            chain.code = class_sorted_mwpm(chain.code)[chain.code.define_equivalence_class()]
-            #print(chain.code.define_equivalence_class())
-        else:
-            chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
-        #choose one chain to apply mwpm
+    if flag == True and mwpm_start == False:
+        chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
 
     # Do the metropolis steps and add to samples if new chains are found
     for _ in range(int(steps)):
@@ -310,17 +300,23 @@ def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000
 
     chain_list = []
 
+    mwpm = class_sorted_mwpm(init_code)
+
+
     for eq in range(nbr_eq_classes):
         drop_list = []
         for _ in range(droplets):
             chain = Chain(size, p_sampling, copy.deepcopy(init_code))
-            chain.code.qubit_matrix = init_code.to_class(eq)
-            chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
+            if mwpm_start == False:
+                chain.code.qubit_matrix = init_code.to_class(eq)
+                chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
+            else:
+                chain.code= mwpm[eq]
             drop_list.append(chain)
-            print(chain.code.define_equivalence_class())
+            #print(chain.code.define_equivalence_class())
         chain_list.append(drop_list)
 
-    total_counts = 0
+    #total_counts = 0
     flag = True #decides whether to apply uniform stabilizers in pool
     with Pool(droplets) as pool:
         for i in range(num_points):
@@ -349,6 +345,76 @@ def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000
 
     # Retrun normalized eq_distr
     return eqdistr
+
+def STDC_rain_fast(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000, mwpm_start = False):
+    # set p_sampling equal to p_error by default
+    p_sampling = p_sampling or p_error
+
+    # Create chain with p_sampling, this is allowed since N(n) is independet of p.
+    chain = Chain(size, p_sampling, copy.deepcopy(init_code))
+
+    # this is either 4 or 16, depending on what type of code is used.
+    nbr_eq_classes = init_code.nbr_eq_classes
+
+    # this is where we save all samples in a dict, to find the unique ones.
+    qubitlist = [[{} for _ in range(NUM_POINTS)] for _ in range(nbr_eq_classes)]
+
+    # Z_E will be saved in eqdistr
+
+    num_points = NUM_POINTS
+    #raindrops = 10 #int(steps/100)
+
+    freq = int(steps/num_points)
+
+    # Z_E will be saved in eqdistr
+    eqdistr = np.zeros((nbr_eq_classes, num_points))
+    counter = 0
+    beta = -log((p_error / 3) / (1 - p_error))
+
+    chain_list = []
+
+    mwpm = class_sorted_mwpm(init_code)
+
+    for eq in range(nbr_eq_classes):
+        chain = Chain(size, p_sampling, copy.deepcopy(init_code))
+        if mwpm_start == False:
+            chain.code.qubit_matrix = init_code.to_class(eq)
+            chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
+        else:
+            chain.code= mwpm[eq]
+        chain_list.append(chain)
+
+
+    with Pool(droplets) as pool:
+        output = pool.map(STDC_fast_droplet, [(copy.deepcopy(chain_list[eq]), int(steps), mwpm_start, eq, drop, num_points) for drop in range(droplets) for eq in range(nbr_eq_classes)])
+
+    for thread in output:
+        samples, eq, _ = thread
+        for stage in range(num_points):
+            qubitlist[eq][stage].update(samples[stage])
+
+    for thread in output:
+        samples, eq, drop = thread
+        for stage in range(num_points):
+            for key in qubitlist[eq][stage]:
+                eqdistr[eq, stage] += exp(-beta * qubitlist[eq][stage][key])
+    return eqdistr
+
+def STDC_fast_droplet(input_data_tuple):
+    chain, steps, mwpm_start, eq, drop, num_points = input_data_tuple
+    samples = [{} for _ in range(num_points)]
+    # Start in high energy state
+    if mwpm_start == False:
+        chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
+    # Do the metropolis steps and add to samples if new chains are found
+    for stage in range(num_points):
+        for step in range(int(steps/num_points)):
+            chain.update_chain(5)
+            key = chain.code.qubit_matrix.astype(np.uint8).tostring()
+            if key not in samples[stage]:
+                for sample in samples[stage:]:
+                    sample[hash(key)] = chain.code.count_errors()
+    return (samples, eq, drop)
 
 def STRC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000):
     # set p_sampling equal to p_error by default
@@ -677,12 +743,41 @@ def STRC(init_code, size, p_error, p_sampling=None, steps=20000, mwpm_start = Fa
             shortest = short_stats[0]['n']
             shortest_count = short_stats[0]['N']
             shortest_fraction = shortest_count / len_counts[eq][shortest]
+            yn = (shortest_count-1) / len_counts[eq][shortest]
+            if shortest_fraction != 1:
+                """for i in range(100):
+                    #print(len_counts[eq][shortest]*yn**(len_counts[eq][shortest]-1)-shortest_count, "here")
+                    yn = ((len_counts[eq][shortest]-1)*yn**len_counts[eq][shortest]-(shortest_count-1))/(len_counts[eq][shortest]*yn**(len_counts[eq][shortest]-1)-shortest_count)
+                shortest_fraction = (1/(1-yn)-1)/shortest_count"""
+                m = len_counts[eq][shortest]
+                k = shortest_count
+                #shortest_fraction = m*(m-1)/2/(m-k)/m
+
+
+
+
 
             next_shortest = short_stats[1]['n']
             next_shortest_count = short_stats[1]['N']
 
             if next_shortest != max_length:
                 next_shortest_fraction = next_shortest_count / len_counts[eq][next_shortest]
+                #print(next_shortest_fraction, "next_shortest_fraction")
+                if next_shortest_fraction !=1:
+                    m = len_counts[eq][next_shortest]
+                    k = next_shortest_count
+                    """yn = (next_shortest_count-1)/next_shortest_count
+                    for i in range(1000):
+                        #print(len_counts[eq][next_shortest]*yn**(len_counts[eq][next_shortest]-1)-next_shortest_count, len_counts[eq][next_shortest]*yn**(len_counts[eq][next_shortest]-1),"here2")
+                        yn = ((len_counts[eq][next_shortest]-1)*yn**len_counts[eq][next_shortest]-(next_shortest_count-1))/(len_counts[eq][next_shortest]*yn**(len_counts[eq][next_shortest]-1)-next_shortest_count)
+                    print("line 697", (1/(1-yn)-1), next_shortest_count)
+                    next_shortest_fraction = (1/(1-yn)-1)/next_shortest_count"""
+                    #next_shortest_fraction = m*(m-1)/2/(m-k)/m
+                    #print("line 702", m*(m-1)/2/(m-k) , next_shortest_count)
+
+                    #print(yn, next_shortest_count)
+
+
                 mean_fraction = 0.5 * (shortest_fraction + next_shortest_fraction * exp(-beta_sampling * (next_shortest - shortest)))
 
             else:
@@ -701,6 +796,6 @@ if __name__ == '__main__':
     init_code = Planar_code(5)
     p=0.20
     init_code.generate_random_error(p)
-    max_iters = 20000
-    x = single_temp(init_code, p, max_iters)
+
+    x = STDC_rain_fast(init_code, size=3, p_error=p, p_sampling=None, droplets=4, steps=20000, mwpm_start = True)
     print(x)
