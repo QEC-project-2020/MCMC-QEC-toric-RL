@@ -3,7 +3,7 @@ import random as rand
 import copy
 import collections
 
-from numba import jit, prange
+from numba import jit, njit
 from .toric_model import Toric_code
 from .planar_model import Planar_code
 from .util import Action
@@ -18,16 +18,8 @@ rule_table = np.array(([[0, 1, 2, 3], [1, 0, 3, 2],
 
 
 class Chain:
-    def __init__(self, size, p, code=None):
-        if code is None:
-             self.code = Toric_code(size)
-        else:
-            if not isinstance(code, (Toric_code, Planar_code)):
-                raise ValueError("'code' has to be None, or an instance of Planar_code or Toric_code")
-            else:
-                self.code = code
-
-        self.size = size
+    def __init__(self, p, code):
+        self.code = code
         self.p = p
         self.p_logical = 0
         self.flag = 0
@@ -61,10 +53,59 @@ class Chain:
                     self.code.qubit_matrix = new_matrix
 
 
-    # plot toric code
-    """def plot(self, name, eq_class=None):
-        self.code.syndrom('next_state')
-        self.code.plot_toric_code(self.code.next_state, name, eq_class)"""
+class Ladder:
+    def __init__(self, p_bottom, init_code, Nc, p_logical=0):
+        # sampling probability of bottom chain
+        self.p_bottom = p_bottom
+        # seed code 
+        self.init_code = init_code
+        # number of chains
+        self.Nc = Nc
+        # logical sampling rate in top chain
+        self.p_logical = p_logical
+        p_top = 0.75
+        # temporary list of sampling probabilities
+        p_ladder = np.linspace(p_bottom, p_top, Nc)
+        self.p_ladder = p_ladder
+        # list of relative probabilities
+        self.p_diff = (p_ladder[:-1] * (1 - p_ladder[1:])) / (p_ladder[1:] * (1 - p_ladder[:-1]))
+        # list of Chains of increasing p 
+        self.chains = [Chain(p, copy.deepcopy(init_code)) for p in p_ladder]
+        # special properties of top chain
+        self.chains[-1].flag = 1
+        self.chains[-1].p_logical = p_logical
+
+
+    def update_ladder(self, iters):
+        for chain in self.chains:
+            chain.update_chain(iters)
+
+
+    # returns true if flip should be performed
+    def r_flip(self, ind_lo):
+        # chain lengths
+        ne_lo = self.chains[ind_lo].code.count_errors()
+        ne_hi = self.chains[ind_lo + 1].code.count_errors()
+        # relative probabilities between chains (except exponent)
+        rel_p = self.p_diff[ind_lo]
+        return _r_flip(ne_lo, ne_hi, rel_p)
+
+
+    def step(self, iters):
+        self.update_ladder(iters)
+        for i in reversed(range(self.Nc - 1)):
+            if self.r_flip(i):
+                self.chains[i].code, self.chains[i + 1].code = self.chains[i + 1].code, self.chains[i].code
+                self.chains[i].flag, self.chains[i + 1].flag = self.chains[i + 1].flag, self.chains[i].flag
+        self.chains[-1].flag = 1
+
+
+@njit('(int64, int64, float64)')
+def _r_flip(ne_lo, ne_hi, rel_p):
+    if ne_hi < ne_lo:
+        return True
+    else:
+        return rand.random() < rel_p ** (ne_hi - ne_lo)
 
 
 # This is the object we crate to read a file during training
@@ -135,9 +176,8 @@ def parallel_tempering(init_toric, Nc=None, p=0.1, SEQ=5, TOPS=10, tops_burn=2, 
     # add and copy state for all chains in ladder
     for i in range(Nc):
         p_i = p + ((p_end - p) / (Nc - 1)) * i
-        ladder.append(Chain(size, p_i))
-        ladder[i].code= copy.deepcopy(init_toric)  # give all the same initial state
-    ladder[Nc - 1].p_logical = 0.5  # set probability of application of logical operator in top chain
+        ladder.append(Chain(p_i, copy.deepcopy(init_toric))) # give all the same initial state
+    ladder[-1].p_logical = 0.5  # set probability of application of logical operator in top chain
 
     count = -1
     for j in range(steps):
@@ -148,7 +188,7 @@ def parallel_tempering(init_toric, Nc=None, p=0.1, SEQ=5, TOPS=10, tops_burn=2, 
         ladder[-1].flag = 1
         for i in reversed(range(Nc - 1)):
             if r_flip(ladder[i].code.qubit_matrix, ladder[i].p, ladder[i + 1].code.qubit_matrix, ladder[i + 1].p):
-                ladder[i].code, ladder[i + 1].code= ladder[i + 1].code, ladder[i].code
+                ladder[i].code, ladder[i + 1].code = ladder[i + 1].code, ladder[i].code
                 ladder[i].flag, ladder[i + 1].flag = ladder[i + 1].flag, ladder[i].flag
         if ladder[0].flag == 1:
             tops0 += 1
@@ -203,15 +243,8 @@ def conv_crit_error_based(nbr_errors_bottom_chain, since_burn, tops_accepted, SE
 
 @jit(nopython=True) # @jit needed for numba, r_flip calculates the quotient called r_flip
 def r_flip(qubit_lo, p_lo, qubit_hi, p_hi):
-    ne_lo = 0
-    ne_hi = 0
-    for i in range(2):
-        for j in range(qubit_lo.shape[1]):
-            for k in range(qubit_lo.shape[1]):
-                if qubit_lo[i, j, k] != 0:
-                    ne_lo += 1
-                if qubit_hi[i, j, k] != 0:
-                    ne_hi += 1
+    ne_lo = qubit_lo.count_nonzero()
+    ne_hi = qubit_hi.count_nonzero()
     # compute eqn (5) in high threshold paper
     if rand.random() < ((p_lo / p_hi) * ((1 - p_hi) / (1 - p_lo))) ** (ne_hi - ne_lo):
         return True

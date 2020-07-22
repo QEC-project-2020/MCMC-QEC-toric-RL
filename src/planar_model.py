@@ -262,12 +262,14 @@ def _apply_stabilizer(qubit_matrix, row, col, operator):
 @njit('(uint8[:,:,:],)')
 def _apply_random_stabilizer(qubit_matrix):
     size = qubit_matrix.shape[1]
+    short_side = int((size - 1) * random())
+    long_side = int(size * random())
     if rand.random() < 0.5:
         # operator = 1 = x
-        return _apply_stabilizer(qubit_matrix,rand.randint(0,size-2),rand.randint(0,size-1),1)
+        return _apply_stabilizer(qubit_matrix, short_side, long_side, 1)
     else: 
         # operator = 3 = z
-        return _apply_stabilizer(qubit_matrix,rand.randint(0,size-1),rand.randint(0,size-2),3)
+        return _apply_stabilizer(qubit_matrix, long_side, short_side, 3)
 
 
 def _apply_stabilizers_uniform(qubit_matrix, p=0.5):

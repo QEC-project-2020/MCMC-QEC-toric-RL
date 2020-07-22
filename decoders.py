@@ -14,28 +14,25 @@ import pandas as pd
 import time
 
 from math import log, exp
+from multiprocessing import Pool, cpu_count
 from operator import itemgetter
-from multiprocessing import Pool
 
 # Original MCMC Parallel tempering method as descibed in high threshold paper
 # Parameters also adapted from that paper.
 # steps has an upper limit on 50 000 000, which should not be met during operation
 def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=50000000, iters=10, conv_criteria='error_based'):
-    # System size is determined from init_code
-    size = init_code.system_size
-
     # either 4 or 16 depending on choice of code topology
     nbr_eq_classes = init_code.nbr_eq_classes
 
     # If not specified, use size as per paper
-    Nc = Nc or size
+    Nc = Nc or init_code.system_size
 
     # Warn about incorrect parameter inputs
     if tops_burn >= TOPS:
         print('tops_burn has to be smaller than TOPS')
 
-    ladder = []  # ladder to store all parallel chains with diffrent temperatures
-    p_end = 0.75  # p at top chain is 0.75 (I,X,Y,Z equally likely)
+    #ladder = []  # ladder to store all parallel chains with diffrent temperatures
+    #p_end = 0.75  # p at top chain is 0.75 (I,X,Y,Z equally likely)
 
     # initialize variables
     tops0 = 0
@@ -43,7 +40,8 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
     resulting_burn_in = 0
     nbr_errors_bottom_chain = np.zeros(steps)
 
-    eq = np.zeros([steps, nbr_eq_classes], dtype=np.uint32)  # list of class counts after burn in
+    # list of class counts after burn in
+    eq = np.zeros([steps, nbr_eq_classes], dtype=np.uint32)
 
     # used in error_based/majority_based instead of setting tops0 = TOPS
     tops_change = 0
@@ -51,39 +49,21 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
     # Convergence flag
     convergence_reached = False
 
-    # Initialize all chains in ladder with same state but different temperatures.
-    for i in range(Nc):
-        p_i = p + ((p_end - p) / (Nc - 1)) * i # Temperature (in p) for chain i
-        ladder.append(Chain(size, p_i))
-        ladder[i].code= copy.deepcopy(init_code)  # give all the same initial state
-
-    # Set probability of application of logical operator in top chain
-    ladder[Nc - 1].p_logical = 0.5
+    # initialize ladder of chains sampled at different temperatures
+    ladder = Ladder(p, init_code, Nc, 0.5)
 
     # Main loop that runs until convergence or max steps (steps) are reached
     for j in range(steps):
-        # Run Metropolis steps for each chain in ladder
-        for i in range(Nc):
-            ladder[i].update_chain(iters)
+        # run metropolis on every chain and perform chain swaps
+        ladder.step(iters)
 
-        # Flag are used to know what chains originating in the top layer of the ladder has found their way down
-        # The top chain always generates chains with flag "1". Once such a chain reaches the bottom the flag is
-        # reset to 0
-        ladder[-1].flag = 1
-
-        # current_eq attempt flips of chains from the top down
-        for i in reversed(range(Nc - 1)):
-            if r_flip(ladder[i].code.qubit_matrix, ladder[i].p, ladder[i + 1].code.qubit_matrix, ladder[i + 1].p):
-                ladder[i].code, ladder[i + 1].code = ladder[i + 1].code, ladder[i].code
-                ladder[i].flag, ladder[i + 1].flag = ladder[i + 1].flag, ladder[i].flag
-        
         # Update bottom chain flag and add to tops0
-        if ladder[0].flag == 1:
+        if ladder.chains[0].flag == 1:
             tops0 += 1
-            ladder[0].flag = 0
+            ladder.chains[0].flag = 0
 
         # Get sample from eq-class of chain in lowest layer of ladder
-        current_eq = ladder[0].code.define_equivalence_class()
+        current_eq = ladder.chains[0].code.define_equivalence_class()
 
         # Start saving stats once burn-in period is over
         if tops0 >= tops_burn:
@@ -91,7 +71,7 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
 
             eq[since_burn] = eq[since_burn - 1]
             eq[since_burn][current_eq] += 1
-            nbr_errors_bottom_chain[since_burn] = ladder[0].code.count_errors()
+            nbr_errors_bottom_chain[since_burn] = ladder.chains[0].code.count_errors()
         else:
             # number of steps until tops0 = 2
             resulting_burn_in += 1
@@ -111,22 +91,6 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
         print('\n\nWARNING: PTEQ hit maxnbr steps before convergence:\t', j + 1, '\n\n')
 
     return (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8)
-
-@njit # r_flip calculates the quotient called r_flip in paper
-def r_flip(qubit_lo, p_lo, qubit_hi, p_hi):
-    ne_lo = 0
-    ne_hi = 0
-    for i in range(2):
-        for j in range(qubit_lo.shape[1]):
-            for k in range(qubit_lo.shape[1]):
-                if qubit_lo[i, j, k] != 0:
-                    ne_lo += 1
-                if qubit_hi[i, j, k] != 0:
-                    ne_hi += 1
-    # compute eqn (5) in high threshold paper
-    if rand.random() < ((p_lo / p_hi) * ((1 - p_hi) / (1 - p_lo))) ** (ne_hi - ne_lo):
-        return True
-    return False
 
 
 # convergence criteria used in paper and called ''felkriteriet''
@@ -152,14 +116,14 @@ def single_temp(init_code, p, max_iters, eps, burnin=625, conv_criteria='error_b
         # make sure one init per class is provided
         assert len(init_code) == nbr_eq_classes, 'if init_code is a list, it has to contain one code for each class'
         # initiate ladder
-        ladder = [Chain(code.system_size, p, copy.deepcopy(code)) for code in init_code]
+        ladder = [Chain(p, copy.deepcopy(code)) for code in init_code]
     
     # if init_code is a single code, inits for every class have to be generated
     else:
         nbr_eq_classes = init_code.nbr_eq_classes
         ladder = [None] * nbr_eq_classes # list of chain objects
         for eq in range(nbr_eq_classes):
-            ladder[eq] = Chain(init_code.system_size, p, copy.deepcopy(init_code))
+            ladder[eq] = Chain(p, copy.deepcopy(init_code))
             ladder[eq].code.qubit_matrix = ladder[eq].code.to_class(eq) # apply different logical operator to each chain
 
     nbr_errors_chain = np.zeros((nbr_eq_classes, max_iters))
@@ -203,6 +167,54 @@ def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i 
         return 0
 
 
+def PTDC(init_code, p_error, p_sampling=None, Nc=None, steps=20000):
+    Nc = Nc or init_code.system_size
+    steps = steps // Nc
+    p_sampling = p_sampling or p_error
+    iters = 10
+
+    if type(init_code) == list:
+        # this is either 4 or 16, depending on what type of code is used.
+        nbr_eq_classes = init_code[0].nbr_eq_classes
+        # make sure one init code is provided for each class
+        assert len(init_code) == nbr_eq_classes, 'if init_code is a list, it has to contain one code for each class'
+        eq_ladders = [Ladder(p_sampling, eq_code, Nc) for eq_code in init_code]
+
+    else:
+        # this is either 4 or 16, depending on what type of code is used.
+        nbr_eq_classes = init_code.nbr_eq_classes
+
+        eq_ladders = [None] * nbr_eq_classes
+        for eq in range(nbr_eq_classes):
+            eq_code = copy.deepcopy(init_code)
+            eq_code.qubit_matrix = eq_code.to_class(eq)
+            eq_ladders[eq] = Ladder(p_sampling, eq_code, Nc)
+
+    # this is where we save all samples in a dict, to find the unique ones.
+    qubitlist = {}
+
+    # Z_E will be saved in eqdistr
+    eqdistr = np.zeros(nbr_eq_classes)
+
+    # error-model
+    beta = -log((p_error / 3) / (1 - p_error))
+
+    for eq in range(nbr_eq_classes):
+        for step in range(steps):
+            eq_ladders[eq].step(iters)
+            for i, chain in enumerate(eq_ladders[eq].chains):
+                key = hash(chain.code.qubit_matrix.tobytes())
+                if not key in qubitlist:
+                    qubitlist[key] = chain.code.count_errors()
+
+        for key in qubitlist:
+            eqdistr[eq] += exp(-beta * qubitlist[key])
+        qubitlist.clear()
+
+    # Retrun normalized eq_distr
+    return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
+
+
 def STDC_droplet(input_data_tuple):
     # All unique chains will be saved in samples
     samples = {}
@@ -215,7 +227,7 @@ def STDC_droplet(input_data_tuple):
     # Do the metropolis steps and add to samples if new chains are found
     for _ in range(int(steps)):
         chain.update_chain(5)
-        key = chain.code.qubit_matrix.astype(np.uint8).tobytes()
+        key = hash(chain.code.qubit_matrix.tobytes())
         if key not in samples:
             samples[key] = chain.code.count_errors()
 
@@ -231,7 +243,7 @@ def STDC(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
         nbr_eq_classes = init_code[0].nbr_eq_classes
         # make sure one init code is provided for each class
         assert len(init_code) == nbr_eq_classes, 'if init_code is a list, it has to contain one code for each class'
-        eq_chains = [Chain(size, p_sampling, copy.deepcopy(code)) for code in init_code]
+        eq_chains = [Chain(p_sampling, copy.deepcopy(code)) for code in init_code]
         # don't apply uniform stabilizers if low energy inits are provided
         randomize = False
 
@@ -241,7 +253,7 @@ def STDC(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
         # Create chain with p_sampling, this is allowed since N(n) is independet of p.
         eq_chains = [None] * nbr_eq_classes
         for eq in range(nbr_eq_classes):
-            eq_chains[eq] = Chain(size, p_sampling, copy.deepcopy(init_code))
+            eq_chains[eq] = Chain(p_sampling, copy.deepcopy(init_code))
             eq_chains[eq].code.qubit_matrix = eq_chains[eq].code.to_class(eq)
         # apply uniform stabilizers, i.e. rain
         randomize = True
@@ -276,6 +288,82 @@ def STDC(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
     return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
 
 
+def PTRC(init_code, p_error, p_sampling=None, Nc=None, steps=20000):
+    Nc = Nc or init_code.system_size
+    steps = steps // Nc
+    p_sampling = p_sampling or p_error
+    iters = 10
+
+    if type(init_code) == list:
+        # this is either 4 or 16, depending on what type of code is used.
+        nbr_eq_classes = init_code[0].nbr_eq_classes
+        # make sure one init code is provided for each class
+        assert len(init_code) == nbr_eq_classes, 'if init_code is a list, it has to contain one code for each class'
+        eq_ladders = [Ladder(p_sampling, eq_code, Nc) for eq_code in init_code]
+
+    else:
+        # this is either 4 or 16, depending on what type of code is used.
+        nbr_eq_classes = init_code.nbr_eq_classes
+
+        eq_ladders = [None] * nbr_eq_classes
+        for eq in range(nbr_eq_classes):
+            eq_code = copy.deepcopy(init_code)
+            eq_code.qubit_matrix = eq_code.to_class(eq)
+            eq_ladders[eq] = Ladder(p_sampling, eq_code, Nc)
+
+    # this is where we save all samples in a dict, to find the unique ones.
+    qubitlist = {}
+
+    # Z_E will be saved in eqdistr
+    eqdistr = np.zeros(nbr_eq_classes)
+
+    # inverse temperature when writing probability in exponential form
+    beta_error = -log((p_error / 3) / (1 - p_error))
+    # array of betas correspoding to ladder temperatures
+    beta_ladder = -np.log((eq_ladders[0].p_ladder[:-1] / 3) / (1 - eq_ladders[0].p_ladder[:-1]))
+    d_beta = beta_ladder - beta_error
+    
+    # Array to hold the boltzmann factors for every class
+    Z_arr = np.zeros(nbr_eq_classes)
+
+    for eq in range(nbr_eq_classes):
+        unique_lengths_ladder = [{} for _ in range(Nc)]
+        len_counts_ladder = [{} for _ in range(Nc)]
+        for step in range(steps):
+            eq_ladders[eq].step(iters)
+            for i, chain in enumerate(eq_ladders[eq].chains):
+                unique_lengths = unique_lengths_ladder[i]
+                len_counts = len_counts_ladder[i]
+                key = hash(chain.code.qubit_matrix.tobytes())
+                if key in unique_lengths:
+                    length = unique_lengths[key]
+                    # increment m(n)
+                    len_counts[length][1] += 1
+
+                else:
+                    length = chain.code.count_errors()
+                    unique_lengths[key] = length
+                    if length in len_counts:
+                        # increment N(n)
+                        len_counts[length][0] += 1
+                        # increment m(n)
+                        len_counts[length][1] += 1
+                    else:
+                        # initialize N(n) and m(n)
+                        len_counts[length] = [1, 1]
+                    
+        for i in range(Nc - 1):
+            sorted_counts = sorted(len_counts_ladder[i].items(), key=itemgetter(0))
+            lengths, counts = [np.array(lst) for lst in zip(*sorted_counts)]
+            C_ests = counts[:, 0] / counts[:, 1] * np.exp(-beta_ladder[i] * (lengths - lengths[0]))
+            C_mean = C_ests[C_ests * 2 > C_ests[0]].mean()
+            Z_est = C_mean * (counts[:, 1] * np.exp(lengths * d_beta[i] - beta_ladder[i] * lengths[0])).sum()
+            Z_arr[eq] += Z_est
+
+    # Retrun normalized eq_distr
+    return (Z_arr / np.sum(Z_arr) * 100).astype(np.uint8)
+
+
 def STRC_droplet(input_data_tuple):
     chain, steps, max_length, eq, randomize = input_data_tuple
     unique_lengths = {}
@@ -300,7 +388,7 @@ def STRC_droplet(input_data_tuple):
         chain.update_chain(5)
 
         # Convert the current qubit matrix to string for hashing
-        key = chain.code.qubit_matrix.tobytes()
+        key = hash(chain.code.qubit_matrix.tobytes())
 
         # Check if this error chain has already been seen by comparing hashes
         if key in unique_lengths:
@@ -366,7 +454,7 @@ def STRC(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
         # make sure one init code is provided for each class
         assert len(init_code) == nbr_eq_classes, 'if init_code is a list, it has to contain one code for each class'
         # Create chains with p_sampling, this is allowed since N(n) is independet of p.
-        eq_chains = [Chain(size, p_sampling, copy.deepcopy(code)) for code in init_code]
+        eq_chains = [Chain(p_sampling, copy.deepcopy(code)) for code in init_code]
         # don't apply uniform stabilizers if low energy inits are provided
         randomize = False
 
@@ -376,7 +464,7 @@ def STRC(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
         # Create chains with p_sampling, this is allowed since N(n) is independet of p.
         eq_chains = [None] * nbr_eq_classes
         for eq in range(nbr_eq_classes):
-            eq_chains[eq] = Chain(size, p_sampling, copy.deepcopy(init_code))
+            eq_chains[eq] = Chain(p_sampling, copy.deepcopy(init_code))
             eq_chains[eq].code.qubit_matrix = eq_chains[eq].code.to_class(eq)
         # apply uniform stabilizers, i.e. rain
         randomize = True
@@ -474,14 +562,23 @@ if __name__ == '__main__':
     t0 = time.time()
     size = 5
     steps = 10000 * int(1 + (size / 5) ** 4)
-    #reader = MCMCDataReader('data/data_7x7_p_0.19.xz', size)
     p_error = 0.1
     p_sampling = 0.1
     init_code = Planar_code(size)
     tries = 2
     distrs = np.zeros((tries, init_code.nbr_eq_classes))
     mean_tvd = 0.0
-    for i in range(10):
+
+    from line_profiler import LineProfiler
+    from src.planar_model import _apply_random_stabilizer
+
+    lp = LineProfiler()
+    lp_wrapper = lp(PTRC)
+    lp.add_function(Ladder.step)
+    lp.add_function(Ladder.r_flip)
+    lp.add_function(Ladder.update_ladder)
+
+    for i in range(1):
         init_code.generate_random_error(p_error)
         ground_state = init_code.define_equivalence_class()
         
@@ -498,21 +595,23 @@ if __name__ == '__main__':
 
             #v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
             #print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
-            t0 = time.time()
-            distrs[i] = STDC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
-            print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
-            t0 = time.time()
-            distrs[i] = STRC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
-            print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
-            t0 = time.time()
-            distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error)
-            print('Try PTEQ       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
+            #t0 = time.time()
+            #distrs[i] = STDC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
+            #print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
+            #t0 = time.time()
+            #distrs[i] = STRC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
+            #print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
+            #t0 = time.time()
+            distrs[i] = lp_wrapper(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps)
+            print('Try PTRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             t0 = time.time()
 
         tvd = sum(abs(distrs[1]-distrs[0]))
         mean_tvd += tvd
         print('TVD:', tvd)
     print('Mean TVD:', mean_tvd / 10)
+
+    lp.print_stats()
 
         #print('STRC distribution 1:', distr1)
         #print('STRC distribution 2:', distr2)
