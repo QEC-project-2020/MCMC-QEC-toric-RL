@@ -74,6 +74,8 @@ class Ladder:
         # special properties of top chain
         self.chains[-1].flag = 1
         self.chains[-1].p_logical = p_logical
+        # count of chains that have "fallen all the way down"
+        self.tops0 = 0 #Rename?
 
 
     def update_ladder(self, iters):
@@ -98,6 +100,9 @@ class Ladder:
                 self.chains[i].code, self.chains[i + 1].code = self.chains[i + 1].code, self.chains[i].code
                 self.chains[i].flag, self.chains[i + 1].flag = self.chains[i + 1].flag, self.chains[i].flag
         self.chains[-1].flag = 1
+        if self.chains[0].flag == 1:
+            self.tops0 += 1
+            self.chains[0].flag = 0
 
 
 @njit('(int64, int64, float64)')

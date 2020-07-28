@@ -35,7 +35,6 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
     #p_end = 0.75  # p at top chain is 0.75 (I,X,Y,Z equally likely)
 
     # initialize variables
-    tops0 = 0
     since_burn = 0
     resulting_burn_in = 0
     nbr_errors_bottom_chain = np.zeros(steps)
@@ -57,16 +56,11 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
         # run metropolis on every chain and perform chain swaps
         ladder.step(iters)
 
-        # Update bottom chain flag and add to tops0
-        if ladder.chains[0].flag == 1:
-            tops0 += 1
-            ladder.chains[0].flag = 0
-
         # Get sample from eq-class of chain in lowest layer of ladder
         current_eq = ladder.chains[0].code.define_equivalence_class()
 
         # Start saving stats once burn-in period is over
-        if tops0 >= tops_burn:
+        if ladder.tops0 >= tops_burn:
             since_burn = j - resulting_burn_in
 
             eq[since_burn] = eq[since_burn - 1]
@@ -77,12 +71,12 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
             resulting_burn_in += 1
 
         # Check for convergence every 10 samples if burn-in period is over (and conv-crit is set)
-        if not convergence_reached and tops0 >= TOPS:
+        if not convergence_reached and ladder.tops0 >= TOPS:
             if conv_criteria == 'error_based':
-                tops_accepted = tops0 - tops_change
+                tops_accepted = ladder.tops0 - tops_change
                 accept, convergence_reached = conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, tops_accepted, SEQ, eps)
                 if not accept:
-                    tops_change = tops0
+                    tops_change = ladder.tops0
         if convergence_reached:
             break
     
@@ -109,7 +103,7 @@ def conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, tops_accepted,
         return False, False
 
 
-def single_temp(init_code, p, max_iters, eps, burnin=625, conv_criteria='error_based', mwpm_init=False):
+def single_temp(init_code, p, max_iters, eps, burnin=625, conv_criteria='error_based'):
     # check if init_code is provided as a list of inits for different classes
     if type(init_code) == list:
         nbr_eq_classes = init_code[0].nbr_eq_classes
@@ -137,7 +131,7 @@ def single_temp(init_code, p, max_iters, eps, burnin=625, conv_criteria='error_b
             if not convergence_reached[eq] and j >= burnin:
                 if conv_criteria == 'error_based' and not j % 100:
                     convergence_reached[eq] = conv_crit_error_based(nbr_errors_chain[eq, :j], j, eps)
-                    if convergence_reached[eq] == 1:
+                    if convergence_reached[eq]:
                         mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
                         break
                 #elif conv_criteria == None:
@@ -160,14 +154,10 @@ def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i 
 
     # Compare averages
     error = abs(Average_Q2 - Average_Q4)
-
-    if error < eps:
-        return 1
-    else:
-        return 0
+    return error < eps
 
 
-def PTDC(init_code, p_error, p_sampling=None, Nc=None, steps=20000):
+def PTDC(init_code, p_error, p_sampling=None, Nc=None, SEQ=2, TOPS=10, eps=0.1, steps=20000, conv_crit=True):
     Nc = Nc or init_code.system_size
     steps = steps // Nc
     p_sampling = p_sampling or p_error
@@ -196,23 +186,45 @@ def PTDC(init_code, p_error, p_sampling=None, Nc=None, steps=20000):
     # Z_E will be saved in eqdistr
     eqdistr = np.zeros(nbr_eq_classes)
 
+    # Observed chain lengths for use in convergence criteria
+    nbr_errors_bottom_chain = np.zeros((nbr_eq_classes, steps))
+
+    # keep track of convergence
+    conv_reached = np.zeros(nbr_eq_classes)
+
+    # keep track of convergence streak
+    conv_streak = 0
+    conv_start = 0
+
     # error-model
     beta = -log((p_error / 3) / (1 - p_error))
 
     for eq in range(nbr_eq_classes):
         for step in range(steps):
             eq_ladders[eq].step(iters)
-            for i, chain in enumerate(eq_ladders[eq].chains):
+            for chain in reversed(eq_ladders[eq].chains):
                 key = hash(chain.code.qubit_matrix.tobytes())
                 if not key in qubitlist:
                     qubitlist[key] = chain.code.count_errors()
+            nbr_errors_bottom_chain[eq, step] = qubitlist[key]
+
+            if conv_crit and not step % 100 and eq_ladders[eq].tops0 >= TOPS:
+                accept, conv_reached[eq] = conv_crit_error_based_PT(nbr_errors_bottom_chain[eq], step, conv_streak, SEQ, eps)
+                if accept:
+                    if conv_reached[eq]:
+                        break
+                    else:
+                        conv_streak = eq_ladders[eq].tops0 - conv_start
+                else:
+                    conv_start = eq_ladders[eq].tops0
+                    conv_streak = 0
 
         for key in qubitlist:
             eqdistr[eq] += exp(-beta * qubitlist[key])
         qubitlist.clear()
 
     # Retrun normalized eq_distr
-    return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
+    return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8), conv_reached
 
 
 def STDC_droplet(input_data_tuple):
@@ -555,7 +567,7 @@ def STRC(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
         Z_arr[eq] = Z_e
 
     # Use boltzmann factors as relative probabilities and normalize distribution
-    return (Z_arr / np.sum(Z_arr) * 100).astype(dtype=int)
+    return (Z_arr / np.sum(Z_arr) * 100).astype(dtype=np.uint8)
 
 
 if __name__ == '__main__':
@@ -573,10 +585,7 @@ if __name__ == '__main__':
     from src.planar_model import _apply_random_stabilizer
 
     lp = LineProfiler()
-    lp_wrapper = lp(PTRC)
-    lp.add_function(Ladder.step)
-    lp.add_function(Ladder.r_flip)
-    lp.add_function(Ladder.update_ladder)
+    lp_wrapper = lp(PTDC)
 
     for i in range(1):
         init_code.generate_random_error(p_error)
@@ -602,8 +611,8 @@ if __name__ == '__main__':
             #distrs[i] = STRC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
             #print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             #t0 = time.time()
-            distrs[i] = lp_wrapper(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps)
-            print('Try PTRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
+            distrs[i], conv_reached = lp_wrapper(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps)
+            print('Try PTRC       ', i+1, ':', distrs[i], 'convergence:', conv_reached, time.time()-t0)
             t0 = time.time()
 
         tvd = sum(abs(distrs[1]-distrs[0]))
