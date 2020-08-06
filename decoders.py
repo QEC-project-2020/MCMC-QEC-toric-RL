@@ -199,26 +199,41 @@ def PTDC(init_code, p_error, p_sampling=None, Nc=None, SEQ=2, TOPS=10, eps=0.1, 
     # error-model
     beta = -log((p_error / 3) / (1 - p_error))
 
+    # Do mcmc sampling, one class at a time
     for eq in range(nbr_eq_classes):
         for step in range(steps):
+            # do mcmc iterations and perform swaps
             eq_ladders[eq].step(iters)
+            # iterate through chain ladder, record observations
+            # reversed chain order so the last key is for the bottom chain
             for chain in reversed(eq_ladders[eq].chains):
+                # hash error chain for reduced memory usage
                 key = hash(chain.code.qubit_matrix.tobytes())
+                # check if the error chain has been seen before
                 if not key in qubitlist:
+                    # otherwise, calculate its length
                     qubitlist[key] = chain.code.count_errors()
+
+            # Save length of bottom chain in separate array
             nbr_errors_bottom_chain[eq, step] = qubitlist[key]
 
+            # check whether to evaluate convergence
             if conv_crit and not step % 100 and eq_ladders[eq].tops0 >= TOPS:
+                # convergence is reached if 'accept' is true for a long enough sequence
                 accept, conv_reached[eq] = conv_crit_error_based_PT(nbr_errors_bottom_chain[eq], step, conv_streak, SEQ, eps)
                 if accept:
+                    # exit the loop if convergence reached
                     if conv_reached[eq]:
                         break
+                    # update accept streak length
                     else:
                         conv_streak = eq_ladders[eq].tops0 - conv_start
+                # reset accept streak length
                 else:
                     conv_start = eq_ladders[eq].tops0
                     conv_streak = 0
 
+        # mcmc sampling for class is finished. calculate boltzmann factor
         for key in qubitlist:
             eqdistr[eq] += exp(-beta * qubitlist[key])
         qubitlist.clear()
@@ -246,7 +261,7 @@ def STDC_droplet(input_data_tuple):
     return samples
 
 
-def STDC(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
+def STDC(init_code, p_error, p_sampling=None, droplets=10, steps=20000):
     # set p_sampling equal to p_error by default
     p_sampling = p_sampling or p_error
 
@@ -300,7 +315,7 @@ def STDC(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
     return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8)
 
 
-def PTRC(init_code, p_error, p_sampling=None, Nc=None, steps=20000):
+def PTRC(init_code, p_error, p_sampling=None, Nc=None, SEQ=2, TOPS=10, eps=0.1, steps=20000, conv_crit=True):
     Nc = Nc or init_code.system_size
     steps = steps // Nc
     p_sampling = p_sampling or p_error
@@ -326,8 +341,15 @@ def PTRC(init_code, p_error, p_sampling=None, Nc=None, steps=20000):
     # this is where we save all samples in a dict, to find the unique ones.
     qubitlist = {}
 
-    # Z_E will be saved in eqdistr
-    eqdistr = np.zeros(nbr_eq_classes)
+    # Observed chain lengths for use in convergence criteria
+    nbr_errors_bottom_chain = np.zeros((nbr_eq_classes, steps))
+
+    # keep track of convergence
+    conv_reached = np.zeros(nbr_eq_classes)
+
+    # keep track of convergence streak
+    conv_streak = 0
+    conv_start = 0
 
     # inverse temperature when writing probability in exponential form
     beta_error = -log((p_error / 3) / (1 - p_error))
@@ -338,23 +360,36 @@ def PTRC(init_code, p_error, p_sampling=None, Nc=None, steps=20000):
     # Array to hold the boltzmann factors for every class
     Z_arr = np.zeros(nbr_eq_classes)
 
+    # do mcmc sampling, one class at a time
     for eq in range(nbr_eq_classes):
+        # ladder of lengths of qubit matrices
         unique_lengths_ladder = [{} for _ in range(Nc)]
+        # ladder of observations of qubit matrix lengths
         len_counts_ladder = [{} for _ in range(Nc)]
+
         for step in range(steps):
+            # do mcmc iterations and perform swaps
             eq_ladders[eq].step(iters)
-            for i, chain in enumerate(eq_ladders[eq].chains):
-                unique_lengths = unique_lengths_ladder[i]
-                len_counts = len_counts_ladder[i]
+            # iterate through ladder, recording chains observations
+            # reverse order so last value of 'length' is length of bottom chain
+            for i, chain in enumerate(reversed(eq_ladders[eq].chains)):
+                unique_lengths = unique_lengths_ladder[-i]
+                len_counts = len_counts_ladder[-i]
+                # hash qubit matrix to reduce memory usage
                 key = hash(chain.code.qubit_matrix.tobytes())
+                # check if chain has been observed before
                 if key in unique_lengths:
+                    # if so, read it's length from dict
                     length = unique_lengths[key]
                     # increment m(n)
                     len_counts[length][1] += 1
 
                 else:
+                    # otherwise, calculate length
                     length = chain.code.count_errors()
+                    # update dict of observed chains
                     unique_lengths[key] = length
+                    # check if chain of this length was observed before
                     if length in len_counts:
                         # increment N(n)
                         len_counts[length][0] += 1
@@ -363,17 +398,44 @@ def PTRC(init_code, p_error, p_sampling=None, Nc=None, steps=20000):
                     else:
                         # initialize N(n) and m(n)
                         len_counts[length] = [1, 1]
-                    
+
+            nbr_errors_bottom_chain[eq][step] = length
+
+            # check whether to evaluate convergence
+            if conv_crit and not step % 100 and eq_ladders[eq].tops0 >= TOPS:
+                # convergence is reached if 'accept' is true for a long enough sequence
+                accept, conv_reached[eq] = conv_crit_error_based_PT(nbr_errors_bottom_chain[eq], step, conv_streak, SEQ, eps)
+                if accept:
+                    # exit the loop if convergence reached
+                    if conv_reached[eq]:
+                        break
+                    # update accept streak length
+                    else:
+                        conv_streak = eq_ladders[eq].tops0 - conv_start
+                # reset accept streak length
+                else:
+                    conv_start = eq_ladders[eq].tops0
+                    conv_streak = 0
+        
+        # iterate through all but top chain in ladder
         for i in range(Nc - 1):
+            # sort len_counts by length
             sorted_counts = sorted(len_counts_ladder[i].items(), key=itemgetter(0))
+            # make length and count array from sorted list
             lengths, counts = [np.array(lst) for lst in zip(*sorted_counts)]
+            # calculate C estimate for each length, count pair
             C_ests = counts[:, 0] / counts[:, 1] * np.exp(-beta_ladder[i] * (lengths - lengths[0]))
-            C_mean = C_ests[C_ests * 2 > C_ests[0]].mean()
+            # remove outlier estimates
+            tmp = C_ests[C_ests * 2 > C_ests[0]]
+            # calculate final estimate
+            C_mean = tmp.size / np.sum(1.0 / tmp) # HARMONISKT MEDELVARDE FETT GODTYCKLIGT
+            # calculate boltzmann factor from C estimate
             Z_est = C_mean * (counts[:, 1] * np.exp(lengths * d_beta[i] - beta_ladder[i] * lengths[0])).sum()
+            # Accumulate boltzmann factor for equivalence class
             Z_arr[eq] += Z_est
 
     # Retrun normalized eq_distr
-    return (Z_arr / np.sum(Z_arr) * 100).astype(np.uint8)
+    return (Z_arr / np.sum(Z_arr) * 100).astype(np.uint8), conv_reached
 
 
 def STRC_droplet(input_data_tuple):
@@ -456,7 +518,7 @@ def STRC_droplet(input_data_tuple):
     return unique_lengths, len_counts, short_unique
 
  
-def STRC(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
+def STRC(init_code, p_error, p_sampling=None, droplets=10, steps=20000):
     # set p_sampling equal to p_error by default
     p_sampling = p_sampling or p_error
 
@@ -490,7 +552,7 @@ def STRC(init_code, size, p_error, p_sampling=None, droplets=10, steps=20000):
     Z_arr = np.zeros(nbr_eq_classes)
 
     # Largest possible chain length
-    max_length = 2 * size ** 2
+    max_length = 2 * eq_chains[0].code.system_size ** 2
 
     # Iterate through equivalence classes
     for eq in range(nbr_eq_classes):
@@ -581,11 +643,9 @@ if __name__ == '__main__':
     distrs = np.zeros((tries, init_code.nbr_eq_classes))
     mean_tvd = 0.0
 
-    from line_profiler import LineProfiler
-    from src.planar_model import _apply_random_stabilizer
-
-    lp = LineProfiler()
-    lp_wrapper = lp(PTDC)
+    #from line_profiler import LineProfiler
+    #lp = LineProfiler()
+    #lp_wrapper = lp(STRC)
 
     for i in range(1):
         init_code.generate_random_error(p_error)
@@ -604,23 +664,26 @@ if __name__ == '__main__':
 
             #v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
             #print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'ground state:', ground_state, 'convergence:', convergece, time.time()-t0)
+            t0 = time.time()
+            distrs[i] = STDC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
+            print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
+            t0 = time.time()
+            distrs[i], conv = PTDC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps)
+            print('Try PTDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'converged:', conv, 'time:', time.time()-t0)
             #t0 = time.time()
-            #distrs[i] = STDC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
-            #print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
-            #t0 = time.time()
-            #distrs[i] = STRC(copy.deepcopy(init_code), size=size, p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
+            #distrs[i] = STRC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
             #print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
             #t0 = time.time()
-            distrs[i], conv_reached = lp_wrapper(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps)
-            print('Try PTRC       ', i+1, ':', distrs[i], 'convergence:', conv_reached, time.time()-t0)
-            t0 = time.time()
+            #distrs[i], conv_reached = lp_wrapper(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps)
+            #print('Try PTRC       ', i+1, ':', distrs[i], 'convergence:', conv_reached, time.time()-t0)
+            #t0 = time.time()
 
         tvd = sum(abs(distrs[1]-distrs[0]))
         mean_tvd += tvd
         print('TVD:', tvd)
     print('Mean TVD:', mean_tvd / 10)
 
-    lp.print_stats()
+    #lp.print_stats()
 
         #print('STRC distribution 1:', distr1)
         #print('STRC distribution 2:', distr2)
