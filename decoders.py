@@ -22,7 +22,7 @@ import random as rand
 # Original MCMC Parallel tempering method as descibed in high threshold paper
 # Parameters also adapted from that paper.
 
-NUM_POINTS = 100
+NUM_POINTS = 20
 
 def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=1000000, iters=10, conv_criteria=None):
     # System size is determined from init_code
@@ -121,7 +121,7 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=1000
 
     return mean_array
 
-@njit # r_flip calculates the quotient called r_flip in paper
+@njit(cache=True) # r_flip calculates the quotient called r_flip in paper
 def r_flip(qubit_lo, p_lo, qubit_hi, p_hi):
     ne_lo = 0
     ne_hi = 0
@@ -152,6 +152,7 @@ def conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, tops_accepted,
     else:
         return False, False
 
+#@profile
 def single_temp(init_code, p, max_iters, mwpm_start = False):
     nbr_eq_classes = init_code.nbr_eq_classes
     ground_state = init_code.define_equivalence_class()
@@ -170,7 +171,6 @@ def single_temp(init_code, p, max_iters, mwpm_start = False):
 
     if mwpm_start == True:
          mwpm = class_sorted_mwpm(init_code)
-
 
     for eq in range(nbr_eq_classes):
         chain = Chain(init_code.system_size, p, copy.deepcopy(init_code))
@@ -194,6 +194,7 @@ def single_temp(init_code, p, max_iters, mwpm_start = False):
         counter = 0
     return mean_array
 
+#@profile
 def STDC(init_code, size, p_error, p_sampling, steps=20000, mwpm_start = False):
 
     # Create chain with p_sampling, this is allowed since N(n) is independet of p.
@@ -346,6 +347,7 @@ def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000
     # Retrun normalized eq_distr
     return eqdistr
 
+
 def STDC_rain_fast(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000, mwpm_start = False):
     # set p_sampling equal to p_error by default
     p_sampling = p_sampling or p_error
@@ -356,12 +358,14 @@ def STDC_rain_fast(init_code, size, p_error, p_sampling=None, droplets=5, steps=
     # this is either 4 or 16, depending on what type of code is used.
     nbr_eq_classes = init_code.nbr_eq_classes
 
+    num_points = NUM_POINTS
+
     # this is where we save all samples in a dict, to find the unique ones.
-    qubitlist = [[{} for _ in range(NUM_POINTS)] for _ in range(nbr_eq_classes)]
+    qubitlist = [[{} for _ in range(num_points)] for _ in range(nbr_eq_classes)]
 
     # Z_E will be saved in eqdistr
 
-    num_points = NUM_POINTS
+
     #raindrops = 10 #int(steps/100)
 
     freq = int(steps/num_points)
@@ -373,7 +377,8 @@ def STDC_rain_fast(init_code, size, p_error, p_sampling=None, droplets=5, steps=
 
     chain_list = []
 
-    mwpm = class_sorted_mwpm(init_code)
+    if mwpm_start == True:
+         mwpm = class_sorted_mwpm(init_code)
 
     for eq in range(nbr_eq_classes):
         chain = Chain(size, p_sampling, copy.deepcopy(init_code))
@@ -384,10 +389,9 @@ def STDC_rain_fast(init_code, size, p_error, p_sampling=None, droplets=5, steps=
             chain.code= mwpm[eq]
         chain_list.append(chain)
 
-
-    with Pool(droplets) as pool:
+    with Pool(droplets+nbr_eq_classes) as pool:
         output = pool.map(STDC_fast_droplet, [(copy.deepcopy(chain_list[eq]), int(steps), mwpm_start, eq, drop, num_points) for drop in range(droplets) for eq in range(nbr_eq_classes)])
-
+    #t0 = time.time()
     for thread in output:
         samples, eq, _ = thread
         for stage in range(num_points):
