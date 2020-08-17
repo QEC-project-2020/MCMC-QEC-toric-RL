@@ -182,22 +182,22 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
 
 if __name__ == '__main__':
     # Get job array id, working directory
-    #try:
-    #    array_id = os.getenv('SLURM_ARRAY_TASK_ID')
-    #    local_dir = os.getenv('TMPDIR')
-    #except:
-    array_id = '0'
-    local_dir = '.'
-    print('Invalid environment variables, using array_id 0 and local dir.')
+    try:
+        array_id = os.getenv('SLURM_ARRAY_TASK_ID')
+        local_dir = os.getenv('TMPDIR')
+    except:
+        array_id = '0'
+        local_dir = './data'
+        print('Invalid environment variables, using array_id 0 and local dir.')
 
     params = {'code': "planar",
-            'method': "PTDC",
-            'size': 9,
+            'method': "PTRC",
+            'size': 15,
             'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
             'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
             'droplets':1,
             'mwpm_init':True,
-            'fixed_errors':2000,
+            'fixed_errors':None,
             'Nc':None,
             'iters': 10,
             'conv_criteria': 'error_based',
@@ -210,18 +210,18 @@ if __name__ == '__main__':
     print('Nbr of steps to take if applicable:', params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '2000err.xz')
+    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '.xz')
 
     # Generate data
     generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
 
     # View data file
     
-    #iterator = MCMCDataReader(file_path, params['size'])
-    #data = iterator.full()
-    #for k in range(int(len(data)/2)):
-    #    qubit_matrix = data[2*k].reshape(2,params['size'],params['size'])
-    #    eq_distr = data[2*k+1]
+    '''iterator = MCMCDataReader(file_path, params['size'])
+    data = iterator.full()
+    for k in range(int(len(data)/2)):
+        qubit_matrix = data[2*k].reshape(2,params['size'],params['size'])
+        eq_distr = data[2*k+1]
 
-    #    print(qubit_matrix)
-    #    print(eq_distr)
+        print(qubit_matrix)
+        print(eq_distr)'''

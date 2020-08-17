@@ -138,6 +138,9 @@ class MCMCDataReader:
         else:
             return None, None  # How do we do this nicely? Maybe it can wrap around?
 
+    def full(self):
+        return self.__df.to_numpy().ravel()
+
     def has_next(self):
         return self.__current_index < self.__capacity
 

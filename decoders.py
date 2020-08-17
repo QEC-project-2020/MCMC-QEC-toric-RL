@@ -243,7 +243,7 @@ def PTDC(init_code, p_error, p_sampling=None, Nc=None, SEQ=2, TOPS=10, eps=0.1, 
         qubitlist.clear()
 
     # Retrun normalized eq_distr
-    return (np.divide(eqdistr, sum(eqdistr)) * 100).astype(np.uint8), conv_reached
+    return (np.divide(eqdistr, sum(eqdistr)) * 100), conv_reached
 
 
 def STDC_droplet(input_data_tuple):
@@ -442,7 +442,7 @@ def PTRC(init_code, p_error, p_sampling=None, Nc=None, SEQ=2, TOPS=10, eps=0.1, 
             Z_arr[eq] += Z_est
 
     # Retrun normalized eq_distr
-    return (Z_arr / np.sum(Z_arr) * 100).astype(np.uint8), conv_reached
+    return (Z_arr / np.sum(Z_arr) * 100), conv_reached
 
 
 def STRC_droplet(input_data_tuple):
