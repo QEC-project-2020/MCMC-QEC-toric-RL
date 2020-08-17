@@ -158,12 +158,14 @@ def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i 
 
 
 def PTDC(init_code, p_error, p_sampling=None, Nc=None, SEQ=2, TOPS=10, eps=0.1, steps=20000, conv_crit=True):
-    Nc = Nc or init_code.system_size
-    steps = steps // Nc
+    
+    
     p_sampling = p_sampling or p_error
     iters = 10
 
     if type(init_code) == list:
+        Nc = Nc or init_code[0].system_size
+        steps = steps // Nc
         # this is either 4 or 16, depending on what type of code is used.
         nbr_eq_classes = init_code[0].nbr_eq_classes
         # make sure one init code is provided for each class
@@ -171,6 +173,8 @@ def PTDC(init_code, p_error, p_sampling=None, Nc=None, SEQ=2, TOPS=10, eps=0.1, 
         eq_ladders = [Ladder(p_sampling, eq_code, Nc) for eq_code in init_code]
 
     else:
+        Nc = Nc or init_code.system_size
+        steps = steps // Nc
         # this is either 4 or 16, depending on what type of code is used.
         nbr_eq_classes = init_code.nbr_eq_classes
 
@@ -316,12 +320,13 @@ def STDC(init_code, p_error, p_sampling=None, droplets=10, steps=20000):
 
 
 def PTRC(init_code, p_error, p_sampling=None, Nc=None, SEQ=2, TOPS=10, eps=0.1, steps=20000, conv_crit=True):
-    Nc = Nc or init_code.system_size
-    steps = steps // Nc
+
     p_sampling = p_sampling or p_error
     iters = 10
 
     if type(init_code) == list:
+        Nc = Nc or init_code[0].system_size
+        steps = steps // Nc
         # this is either 4 or 16, depending on what type of code is used.
         nbr_eq_classes = init_code[0].nbr_eq_classes
         # make sure one init code is provided for each class
@@ -329,6 +334,8 @@ def PTRC(init_code, p_error, p_sampling=None, Nc=None, SEQ=2, TOPS=10, eps=0.1, 
         eq_ladders = [Ladder(p_sampling, eq_code, Nc) for eq_code in init_code]
 
     else:
+        Nc = Nc or init_code.system_size
+        steps = steps // Nc
         # this is either 4 or 16, depending on what type of code is used.
         nbr_eq_classes = init_code.nbr_eq_classes
 
@@ -670,13 +677,13 @@ if __name__ == '__main__':
             t0 = time.time()
             distrs[i], conv = PTDC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps)
             print('Try PTDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'converged:', conv, 'time:', time.time()-t0)
-            #t0 = time.time()
-            #distrs[i] = STRC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
-            #print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
-            #t0 = time.time()
-            #distrs[i], conv_reached = lp_wrapper(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps)
-            #print('Try PTRC       ', i+1, ':', distrs[i], 'convergence:', conv_reached, time.time()-t0)
-            #t0 = time.time()
+            t0 = time.time()
+            distrs[i] = STRC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=1)
+            print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'ground state:', ground_state, time.time()-t0)
+            t0 = time.time()
+            distrs[i], conv_reached = PTRC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps)
+            print('Try PTRC       ', i+1, ':', distrs[i], 'convergence:', conv_reached, time.time()-t0)
+            t0 = time.time()
 
         tvd = sum(abs(distrs[1]-distrs[0]))
         mean_tvd += tvd

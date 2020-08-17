@@ -79,6 +79,16 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
             if np.argmax(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
+        if params['method'] == "PTDC":
+            df_eq_distr, conv = PTDC(init_code, params['p_error'], params['p_sampling'])
+            if np.argmax(df_eq_distr) != eq_true:
+                print('Failed syndrom, total now:', failed_syndroms)
+                failed_syndroms += 1
+        if params['method'] == "PTRC":
+            df_eq_distr, conv = PTRC(init_code, params['p_error'], params['p_sampling'])
+            if np.argmax(df_eq_distr) != eq_true:
+                print('Failed syndrom, total now:', failed_syndroms)
+                failed_syndroms += 1
         elif params['method'] == "STDC":
             df_eq_distr = STDC(init_code, params['size'], params['p_error'], params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
             df_eq_distr = np.array(df_eq_distr)
@@ -172,21 +182,21 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
 
 if __name__ == '__main__':
     # Get job array id, working directory
-    try:
-        array_id = os.getenv('SLURM_ARRAY_TASK_ID')
-        local_dir = os.getenv('TMPDIR')
-    except:
-        array_id = '0'
-        local_dir = '.'
-        print('Invalid environment variables, using array_id 0 and local dir.')
+    #try:
+    #    array_id = os.getenv('SLURM_ARRAY_TASK_ID')
+    #    local_dir = os.getenv('TMPDIR')
+    #except:
+    array_id = '0'
+    local_dir = '.'
+    print('Invalid environment variables, using array_id 0 and local dir.')
 
     params = {'code': "planar",
-            'method': "PTEQ",
+            'method': "PTDC",
             'size': 9,
             'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
             'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
             'droplets':1,
-            'mwpm_init':False,
+            'mwpm_init':True,
             'fixed_errors':2000,
             'Nc':None,
             'iters': 10,
