@@ -16,6 +16,7 @@ from decoders import *
 
 # This function generates training data with help of the MCMC algorithm
 #profile
+@profile
 def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**6, method="PTEC"):
 
     t_start = time.time()  # Initiates timing of run
@@ -233,7 +234,7 @@ def main():
     # All paramteters for data generation is set here,
     # some of which may be irrelevant depending on the choice of others
     t_start = time.time()
-    nbr_datapoints = 1000
+    nbr_datapoints = 2
 
 
     mwpm_start = True
@@ -251,7 +252,7 @@ def main():
     params = {'size': int(array_id),
               'p': 0.13,
               'Nc': 9,
-              'steps': 4000, #int(5*int(array_id)**4/100)*100, #int((20000 * (int(array_id)/5)**4)/100)*100, Needs to divide number of data poins
+              'steps': 100, #int(5*int(array_id)**4/100)*100, #int((20000 * (int(array_id)/5)**4)/100)*100, Needs to divide number of data poins
               'iters': 10,
               'conv_criteria': 'error_based',
               'SEQ': 7,
