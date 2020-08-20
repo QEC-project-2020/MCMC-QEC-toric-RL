@@ -17,6 +17,7 @@ from math import log, exp
 from multiprocessing import Pool, cpu_count
 from operator import itemgetter
 
+
 # Original MCMC Parallel tempering method as descibed in high threshold paper
 # Parameters also adapted from that paper.
 # steps has an upper limit on 50 000 000, which should not be met during operation
@@ -133,17 +134,6 @@ def single_temp(init_code, p, max_iters):
                 mean_array[eq] = np.average(nbr_errors_chain[eq ,:j])
 
     return mean_array
-
-
-def conv_crit_error_based(nbr_errors_chain, l, eps):  # Konvergenskriterium 1 i papper
-    # last nonzero element of nbr_errors_bottom_chain is since_burn. Length of nonzero part is since_burn + 1
-    # Calculate average number of errors in 2nd and 4th quarter
-    Average_Q2 = np.average(nbr_errors_chain[(l // 4): (l // 2)])
-    Average_Q4 = np.average(nbr_errors_chain[(3 * l // 4): l])
-
-    # Compare averages
-    error = abs(Average_Q2 - Average_Q4)
-    return error < eps
 
 
 def PTDC(init_code, p_error, p_sampling=None, Nc=None, SEQ=2, TOPS=10, eps=0.1, steps=20000, conv_crit=True):
@@ -448,7 +438,6 @@ def STRC_droplet(input_data_tuple):
     for step in range(steps):
         # Do metropolis sampling
         chain.update_chain_fast(5)
-        #print(len(short_unique[1]))
         # Convert the current qubit matrix to string for hashing
         key = hash(chain.code.qubit_matrix.tobytes())
 
@@ -459,8 +448,6 @@ def STRC_droplet(input_data_tuple):
 
         # If this chain is new, add it to dictionary of unique chains
         else:
-            #print('\nfound new chain')
-            #print('len before new len found:', len(short_unique[1]))
             # Calculate length of this chain
             length = chain.code.count_errors()
             # Store number of observations and length of this chain
@@ -486,30 +473,25 @@ def STRC_droplet(input_data_tuple):
                 len_counts[unique_lengths[key]] = 1
                 # Check if this chain is shorter than prevous shortest chain
                 if length < shortest:
-                    #print('Found new shortest chain')
                     # Then the previous shortest length is the new next shortest
                     next_shortest = shortest
                     shortest = length
                     
-                    #print('before update:', len(short_unique[1]))
                     # Clear next shortest set and set i equal to shortest
                     short_unique[1].clear()
                     short_unique[1].update(short_unique[0])
-                    #print('after update:', len(short_unique[1]))
                     # And the current length is the new shortest
                     short_unique[0].clear()
                     short_unique[0][key] = length
                 
                 # Otherwise, check if this chain is shorter than previous next shortest chain
                 elif length < next_shortest:
-                    #print('Found new next shortest chain!')
                     # Then reset stats of next shortest chain
                     next_shortest = length
 
                     # Clear and update next shortest set
                     short_unique[1].clear()
                     short_unique[1][key] = length
-            #print('len(1) after new chain found:', len(short_unique[1]))
 
     return unique_lengths, len_counts, short_unique
 
