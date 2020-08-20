@@ -90,7 +90,7 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
         elif params['method'] == "STDC":
-            df_eq_distr = STDC(init_code, params['size'], params['p_error'], params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
+            df_eq_distr = STDC(init_code, params['p_error'], params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
             df_eq_distr = np.array(df_eq_distr)
             if np.argmax(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
@@ -102,7 +102,7 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
         elif params['method'] == "STRC":
-            df_eq_distr = STRC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
+            df_eq_distr = STRC(init_code, params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
             df_eq_distr = np.array(df_eq_distr)
             if np.argmax(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
@@ -112,10 +112,10 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
             df_eq_distr1 = single_temp(init_code, params['p_error'],params['steps'])
 
             #init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
-            df_eq_distr2 = STDC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
+            df_eq_distr2 = STDC(init_code, params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
 
             #init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
-            df_eq_distr3 = STRC(init_code, params['size'], params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
+            df_eq_distr3 = STRC(init_code, params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
 
             df_eq_distr = np.concatenate((df_eq_distr1,df_eq_distr2,df_eq_distr3), axis=0)
         elif params['method'] == "eMWPM":
