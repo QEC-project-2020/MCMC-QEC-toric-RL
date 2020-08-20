@@ -347,6 +347,7 @@ def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000
     # Retrun normalized eq_distr
     return eqdistr
 
+@profile
 def STDC_rain_fast(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000, mwpm_start = False):
     # set p_sampling equal to p_error by default
     p_sampling = p_sampling or p_error
