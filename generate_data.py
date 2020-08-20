@@ -210,7 +210,7 @@ def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**
         # Every x iteration adds data to data file from temporary list
         # and clears temporary list
 
-        if (i + 1) % 1000== 0:
+        if (i + 1) % 300== 0:
             df = df.append(df_list, ignore_index = True)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
@@ -233,7 +233,7 @@ def main():
     # All paramteters for data generation is set here,
     # some of which may be irrelevant depending on the choice of others
     t_start = time.time()
-    nbr_datapoints = 3000
+    nbr_datapoints = 1000
 
 
     mwpm_start = True
@@ -251,7 +251,7 @@ def main():
     params = {'size': int(array_id),
               'p': 0.13,
               'Nc': 9,
-              'steps': int(5*int(array_id)**4/100)*100, #int((20000 * (int(array_id)/5)**4)/100)*100, Needs to divide number of data poins
+              'steps': 4000, #int(5*int(array_id)**4/100)*100, #int((20000 * (int(array_id)/5)**4)/100)*100, Needs to divide number of data poins
               'iters': 10,
               'conv_criteria': 'error_based',
               'SEQ': 7,
@@ -282,9 +282,8 @@ def main():
         init_code = Planar_code(params['size'])
         success = np.zeros((len(qubits),len(eq_steps[0])))
         mwpm_success = np.zeros((len(qubits)))
-
-        #print('180', len(qubits),len(data[0]))
         success_rate = np.zeros(len(eq_steps[0]))
+
         for i in range(len(qubits)):
             #print("data", i, data[i])
             for j in range(len(eq_steps[0])):

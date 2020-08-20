@@ -347,7 +347,6 @@ def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000
     # Retrun normalized eq_distr
     return eqdistr
 
-
 def STDC_rain_fast(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000, mwpm_start = False):
     # set p_sampling equal to p_error by default
     p_sampling = p_sampling or p_error
@@ -379,6 +378,7 @@ def STDC_rain_fast(init_code, size, p_error, p_sampling=None, droplets=5, steps=
 
     if mwpm_start == True:
          mwpm = class_sorted_mwpm(init_code)
+         mwpm_distr = np.zeros((len(mwpm)))
 
     for eq in range(nbr_eq_classes):
         chain = Chain(size, p_sampling, copy.deepcopy(init_code))
@@ -387,9 +387,10 @@ def STDC_rain_fast(init_code, size, p_error, p_sampling=None, droplets=5, steps=
             chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
         else:
             chain.code= mwpm[eq]
+            mwpm_distr[eq] = -1*mwpm[eq].count_errors() #the shortest chain will give the correct class
         chain_list.append(chain)
 
-    with Pool(droplets+nbr_eq_classes) as pool:
+    with Pool(droplets*nbr_eq_classes) as pool:
         output = pool.map(STDC_fast_droplet, [(copy.deepcopy(chain_list[eq]), int(steps), mwpm_start, eq, drop, num_points) for drop in range(droplets) for eq in range(nbr_eq_classes)])
     #t0 = time.time()
     for thread in output:
@@ -397,12 +398,15 @@ def STDC_rain_fast(init_code, size, p_error, p_sampling=None, droplets=5, steps=
         for stage in range(num_points):
             qubitlist[eq][stage].update(samples[stage])
 
-    for thread in output:
-        samples, eq, drop = thread
+    #for thread in output:
+    for eq in range(nbr_eq_classes):
+        #samples, eq, drop = thread
         for stage in range(num_points):
             for key in qubitlist[eq][stage]:
                 eqdistr[eq, stage] += exp(-beta * qubitlist[eq][stage][key])
-    return eqdistr
+    tmp = np.insert(eqdistr, 0, mwpm_distr, axis=1)
+    #print(tmp, tmp.shape)
+    return tmp
 
 def STDC_fast_droplet(input_data_tuple):
     chain, steps, mwpm_start, eq, drop, num_points = input_data_tuple
