@@ -14,13 +14,14 @@ from src.mwpm import *
 
 
 # This function generates training data with help of the MCMC algorithm
-def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_errors=None):
+def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6,
+             fixed_errors=None):
 
     if params['code'] == 'planar':
         nbr_eq_class = 4
     elif params['code'] == 'toric':
         nbr_eq_class = 16
-    
+
     if params['method'] == "all":
         nbr_eq_class *= 3
     # Creates data file if there is none otherwise adds to it
@@ -58,66 +59,93 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
         elif params['code'] == 'planar':
             init_code = Planar_code(params['size'])
             init_code.generate_random_error(params['p_error'])
- 
+
         # Flatten initial qubit matrix to store in dataframe
         df_qubit = copy.deepcopy(init_code.qubit_matrix)
         eq_true = init_code.define_equivalence_class()
 
-
-        
-        if params['mwpm_init']: #get mwpm starting points
+        if params['mwpm_init']:  #get mwpm starting points
             init_code = class_sorted_mwpm(init_code)
             print('Starting in MWPM state')
-        else: #randomize input matrix, no trace of seed.
+        else:  # randomize input matrix, no trace of seed.
             init_code.qubit_matrix, _ = init_code.apply_random_logical()
             init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
             print('Starting in random state')
 
-        # Generate data for DataFrame storage  OBS now using full bincount, change this
+        # Generate data for DataFrame storage  OBS now using full bincount,
+        # change this
         if params['method'] == "PTEQ":
-            df_eq_distr = PTEQ(init_code, params['p_error'])
+            df_eq_distr = PTEQ(init_code,
+                               params['p_error'])
             if np.argmax(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
         if params['method'] == "PTDC":
-            df_eq_distr, conv = PTDC(init_code, params['p_error'], params['p_sampling'])
+            df_eq_distr, conv = PTDC(init_code,
+                                     params['p_error'],
+                                     params['p_sampling'])
             if np.argmax(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
         if params['method'] == "PTRC":
-            df_eq_distr, conv = PTRC(init_code, params['p_error'], params['p_sampling'])
+            df_eq_distr, conv = PTRC(init_code,
+                                     params['p_error'],
+                                     params['p_sampling'])
             if np.argmax(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
         elif params['method'] == "STDC":
-            df_eq_distr = STDC(init_code, params['p_error'], params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
+            df_eq_distr = STDC(init_code,
+                               params['p_error'],
+                               params['p_sampling'],
+                               steps=params['steps'],
+                               droplets=params['droplets'])
             df_eq_distr = np.array(df_eq_distr)
             if np.argmax(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
         elif params['method'] == "ST":
-            df_eq_distr = single_temp(init_code, params['p_error'],params['steps'])
+            df_eq_distr = single_temp(init_code,
+                                      params['p_error'],
+                                      params['steps'])
             df_eq_distr = np.array(df_eq_distr)
             if np.argmin(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
         elif params['method'] == "STRC":
-            df_eq_distr = STRC(init_code, params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
+            df_eq_distr = STRC(init_code,
+                               params['p_error'],
+                               p_sampling=params['p_sampling'],
+                               steps=params['steps'],
+                               droplets=params['droplets'])
             df_eq_distr = np.array(df_eq_distr)
             if np.argmax(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
         elif params['method'] == "all":
-            #init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
-            df_eq_distr1 = single_temp(init_code, params['p_error'],params['steps'])
+            # init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
+            df_eq_distr1 = single_temp(init_code,
+                                       params['p_error'],
+                                       params['steps'])
 
-            #init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
-            df_eq_distr2 = STDC(init_code, params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
+            # init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
+            df_eq_distr2 = STDC(init_code,
+                                params['p_error'],
+                                p_sampling=params['p_sampling'],
+                                steps=params['steps'],
+                                droplets=params['droplets'])
 
-            #init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
-            df_eq_distr3 = STRC(init_code, params['p_error'], p_sampling=params['p_sampling'], steps=params['steps'], droplets=params['droplets'])
+            # init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
+            df_eq_distr3 = STRC(init_code,
+                                params['p_error'],
+                                p_sampling=params['p_sampling'],
+                                steps=params['steps'],
+                                droplets=params['droplets'])
 
-            df_eq_distr = np.concatenate((df_eq_distr1,df_eq_distr2,df_eq_distr3), axis=0)
+            df_eq_distr = np.concatenate((df_eq_distr1,
+                                          df_eq_distr2,
+                                          df_eq_distr3), axis=0)
+
         elif params['method'] == "eMWPM":
             out = class_sorted_mwpm(copy.deepcopy(init_code))
             lens = np.zeros((4))
@@ -137,86 +165,105 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
 
-        # Generate data for DataFrame storage  OBS now using full bincount, change this
+        # Generate data for DataFrame storage  OBS now using full
+        # bincount, change this
 
         # Create indices for generated data
         names = ['data_nr', 'type']
         index_qubit = pd.MultiIndex.from_product([[i], np.arange(1)],
                                                  names=names)
-        index_distr = pd.MultiIndex.from_product([[i], np.arange(1)+1], names=names)
+        index_distr = pd.MultiIndex.from_product([[i], np.arange(1)+1],
+                                                 names=names)
 
         # Add data to Dataframes
-        df_qubit = pd.DataFrame([[df_qubit.astype(np.uint8)]], index=index_qubit,
+        df_qubit = pd.DataFrame([[df_qubit.astype(np.uint8)]],
+                                index=index_qubit,
                                 columns=['data'])
         df_distr = pd.DataFrame([[df_eq_distr]],
-                                index=index_distr, columns=['data'])
+                                index=index_distr,
+                                columns=['data'])
 
         # Add dataframes to temporary list to shorten computation time
-        
+
         df_list.append(df_qubit)
         df_list.append(df_distr)
 
         # Every x iteration adds data to data file from temporary list
         # and clears temporary list
-        
-        if (i + 1) % 10000 == 0: # this needs to be sufficiently big that rsync has time to sync files before update, maybe change this to be time-based instead.
+
+        # this contant needs to be sufficiently big that rsync has time
+        # to sync files before update, maybe change this to be
+        # time-based instead.
+        if (i + 1) % 10000 == 0:
             df = df.append(df_list)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
             df.to_pickle(file_path)
             print('Failed so far:', failed_syndroms)
-        
-        # If the desired amount of errors have been achieved, break the loop and finish up
+
+        # If the desired amount of errors have been achieved, break the
+        # loop and finish up
         if failed_syndroms == fixed_errors:
             print('Desired amount of failes syndroms achieved, breaking loop.')
             break
 
-    # Adds any remaining data from temporary list to data file when run is over
+    # Adds any remaining data from temporary list to data file when run
+    # is over
     if len(df_list) > 0:
         df = df.append(df_list)
         print('\nSaving all generated data (writing over)')
         df.to_pickle(file_path)
-    
+
     print('\nCompleted')
 
 
 if __name__ == '__main__':
     # Get job array id, working directory
-    try:
-        array_id = os.getenv('SLURM_ARRAY_TASK_ID')
-        local_dir = os.getenv('TMPDIR')
-    except:
-        array_id = '0'
-        local_dir = './data'
-        print('Invalid environment variables, using array_id 0 and local dir.')
+    #try:
+    #    array_id = os.getenv('SLURM_ARRAY_TASK_ID')
+    #    local_dir = os.getenv('TMPDIR')
+    #except:
+    array_id = '0'
+    local_dir = './data'
+    print('Invalid environment variables, using array_id 0 and local dir.')
 
-    params = {'code': "planar",
-            'method': "PTRC",
-            'size': 15,
-            'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
-            'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
-            'droplets':1,
-            'mwpm_init':True,
-            'fixed_errors':None,
-            'Nc':None,
-            'iters': 10,
-            'conv_criteria': 'error_based',
-            'SEQ': 2,
-            'TOPS': 10,
-            'eps': 0.1}
+    params = {'code':           "planar",
+              'method':         "STRC",
+              'size':           15,
+              'p_error':        np.round((0.05 + float(array_id) / 50),
+                                         decimals=2),
+              'p_sampling':     0.25,
+              'droplets':       1,
+              'mwpm_init':      True,
+              'fixed_errors':   None,
+              'Nc':             None,
+              'iters':          10,
+              'conv_criteria':  'error_based',
+              'SEQ':            2,
+              'TOPS':           10,
+              'eps':            0.1}
+
     # Steps is a function of code size L
     params.update({'steps': int(params['size'] ** 4)})
 
     print('Nbr of steps to take if applicable:', params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '.xz')
+    file_path = os.path.join(local_dir,
+                             'data_size_' + str(params['size']) +
+                             '_method_' + params['method'] +
+                             '_id_' + array_id +
+                             '_perror_' + str(params['p_error']) +
+                             '.xz')
 
     # Generate data
-    generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
+    generate(file_path,
+             params,
+             nbr_datapoints=10,
+             fixed_errors=params['fixed_errors'])
 
     # View data file
-    
+
     '''iterator = MCMCDataReader(file_path, params['size'])
     data = iterator.full()
     for k in range(int(len(data)/2)):
