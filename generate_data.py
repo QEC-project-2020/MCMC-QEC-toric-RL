@@ -159,7 +159,7 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
         # Every x iteration adds data to data file from temporary list
         # and clears temporary list
         
-        if (i + 1) % 10000 == 0: # this needs to be sufficiently big that rsync has time to sync files before update, maybe change this to be time-based instead.
+        if (i + 1) % 1000 == 0: # this needs to be sufficiently big that rsync has time to sync files before update, maybe change this to be time-based instead.
             df = df.append(df_list)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
@@ -185,15 +185,16 @@ if __name__ == '__main__':
     try:
         array_id = os.getenv('SLURM_ARRAY_TASK_ID')
         local_dir = os.getenv('TMPDIR')
+        size = int(5 + 2*(array_id % 8) + .0001)
     except:
         array_id = '0'
         local_dir = './data'
         print('Invalid environment variables, using array_id 0 and local dir.')
 
     params = {'code': "planar",
-            'method': "PTRC",
-            'size': 15,
-            'p_error': np.round((0.05 + float(array_id) / 50), decimals=2),
+            'method': "STDC",
+            'size': size,
+            'p_error': np.round((0.05 + float(array_id % 8) / 50), decimals=2),
             'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
             'droplets':1,
             'mwpm_init':True,
@@ -205,15 +206,15 @@ if __name__ == '__main__':
             'TOPS': 10,
             'eps': 0.1}
     # Steps is a function of code size L
-    params.update({'steps': int(params['size'] ** 4)})
+    params.update({'steps': int(5 * params['size'] ** 4)})
 
     print('Nbr of steps to take if applicable:', params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '.xz')
+    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '_fig7' +  '.xz')
 
     # Generate data
-    generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
+    generate(file_path, params, nbr_datapoints=25000, fixed_errors=params['fixed_errors'])
 
     # View data file
     
