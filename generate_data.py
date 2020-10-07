@@ -14,7 +14,7 @@ from src.mwpm import *
 
 
 # This function generates training data with help of the MCMC algorithm
-def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_errors=None):
+def generate(file_path, params, max_capacity=10**5, nbr_datapoints=10**6, fixed_errors=None):
 
     if params['code'] == 'planar':
         nbr_eq_class = 4
@@ -182,24 +182,23 @@ def generate(file_path, params, max_capacity=10**4, nbr_datapoints=10**6, fixed_
 
 if __name__ == '__main__':
     # Get job array id, working directory
-    try:
-        array_id = os.getenv('SLURM_ARRAY_TASK_ID')
-        local_dir = os.getenv('TMPDIR')
-        size = int(5 + 2*(array_id % 8) + .0001)
-    except:
-        array_id = '0'
-        local_dir = './data'
-        print('Invalid environment variables, using array_id 0 and local dir.')
-
+    array_id = os.getenv('SLURM_ARRAY_TASK_ID')
+    local_dir = os.getenv('TMPDIR')
+    size = int(5 + 2 * int(int(array_id) / 32 + 0.0001) + 0.0001)
+    #except:
+    #    array_id = '0'
+    #    local_dir = './data'
+    #    print('Invalid environment variables, using array_id 0 and local dir.')
+    print('size: ', size)
     params = {'code': "planar",
             'method': "STDC",
             'size': size,
-            'p_error': np.round((0.05 + float(array_id % 8) / 50), decimals=2),
+            'p_error': np.round((0.05 + float(int(array_id) % 32) / 200), decimals=3),
             'p_sampling': 0.25,#np.round((0.05 + float(array_id) / 50), decimals=2),
             'droplets':1,
             'mwpm_init':True,
             'fixed_errors':None,
-            'Nc':None,
+            'Nc': size,
             'iters': 10,
             'conv_criteria': 'error_based',
             'SEQ': 2,
@@ -211,7 +210,7 @@ if __name__ == '__main__':
     print('Nbr of steps to take if applicable:', params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '_fig7' +  '.xz')
+    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '_better-resL4' +  '.xz')
 
     # Generate data
     generate(file_path, params, nbr_datapoints=25000, fixed_errors=params['fixed_errors'])
