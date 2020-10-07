@@ -1,17 +1,11 @@
 import os
-import sys
-import getopt
-import time
 import subprocess
-import argparse
-import copy
-
 import numpy as np
 import random as rand
 
 from src.toric_model import *
 from src.planar_model import *
-from src.util import Action
+
 
 class MWPM():
     def __init__(self, code):
@@ -36,26 +30,24 @@ class MWPM():
             # Total minimum distance
             return shortest_path.sum(axis=0)
 
-
     def generate_random_pairing(self, layer, edges):
         # generates node indices
-        chosen_edges = np.empty(shape=[0,3])
+        chosen_edges = np.empty(shape=[0, 3])
 
-        #removes all connections between ancilla bits
-        edges = edges[~np.all(edges[:,0:2] >= (np.amax(edges[:,0:2])+1)/2, axis=1)]
+        # removes all connections between ancilla bits
+        edges = edges[~np.all(edges[:, 0:2] >= (np.amax(edges[:, 0:2])+1)/2, axis=1)]
 
-        #select random edges and remove the rest
+        # select random edges and remove the rest
         while edges.shape[0] > 0:
-            rownum = rand.randint(0,edges.shape[0]-1)
-            row = edges[rownum,:]
+            rownum = rand.randint(0, edges.shape[0]-1)
+            row = edges[rownum, :]
             chosen_edges = np.concatenate((chosen_edges, [row]), axis=0)
             r0 = row[0]
             r1 = row[1]
-            edges = edges[~np.any(edges[:,0:2] == r0, axis=1)]
-            edges = edges[~np.any(edges[:,0:2] == r1, axis=1)]
+            edges = edges[~np.any(edges[:, 0:2] == r0, axis=1)]
+            edges = edges[~np.any(edges[:, 0:2] == r1, axis=1)]
 
         return chosen_edges.astype(int)
-
 
     def get_layer(self, layer):
         # get defects in layer
@@ -69,7 +61,6 @@ class MWPM():
             defects = self.code.current_state[layer]
 
         return defects
-
 
     # generates an array of node pairs and corresponding edge weights
     def generate_edges(self, layer):
@@ -133,14 +124,13 @@ class MWPM():
         edges = np.zeros((nbr_edges, 3))
         edges[:, 0] = np.array(start_nodes)
         edges[:, 1] = np.array(end_nodes)
-        #edges[:, 2] = np.array(distances)
+        # edges[:, 2] = np.array(distances)
         edges[:, 2] = distances
 
         if self.is_planar:
             return edges, nbr_nodes, ancilla_sides
         else:
             return edges, nbr_nodes, None
-
 
     # generates edges so that odd or even parity results in different equivalence classes
     def generate_edges_constrained(self, layer, parity):
@@ -202,7 +192,7 @@ class MWPM():
 
         # count number of edges between ancilla nodes on both sides
         nbr_ancilla_edges = (nbr_ancilla_nodes * (nbr_ancilla_nodes - 1)) // 2
-        
+
         ancilla_start =     [None] * 2
         ancilla_end =       [None] * 2
         ancilla_distances = [None] * 2
@@ -237,7 +227,6 @@ class MWPM():
         edges[:, 1] = np.array(end_nodes)
         edges[:, 2] = distances
         return edges, nbr_nodes, ancilla_sides
-
 
     # takes coordinates of two defects and connects them along a minimum path
     def eliminate_defect_pair(self, start_coord, end_coord, layer):
@@ -298,7 +287,6 @@ class MWPM():
 
         return correction
 
-
     # connects a defect to its' closest border
     def eliminate_border_defect(self, coord, layer, border=None):
         # translates the layer into x or z operators
@@ -327,7 +315,6 @@ class MWPM():
 
         return correction
 
-
     # generates graph of defects in layer, runs blossom5 and generates a correction chain
     def solve_layer(self, layer, parity=None, random_pairing=False):
         assert (parity in (None, 0, 1)), 'parity has to be None, 0 or 1'
@@ -339,9 +326,9 @@ class MWPM():
             # generates edges that constrains the solution equivalence class
             edges, nbr_nodes, ancilla_sides = self.generate_edges_constrained(layer, parity)
 
-        if random_pairing == False: 
+        if not random_pairing:
             solution_edges = self.generate_MWPM(layer, edges, nbr_nodes)
-        else: 
+        else:
             solution_edges = self.generate_random_pairing(layer, edges)
 
         # get defects in layer
@@ -385,7 +372,6 @@ class MWPM():
 
         return correction
 
-
     # generates an mwpm solution in a given defect layer
     def generate_MWPM(self, layer, edges, nbr_nodes):
         nbr_edges = edges.shape[0]
@@ -394,7 +380,7 @@ class MWPM():
         processId = os.getpid()
         PATH_PREFIX = os.getenv('TMPDIR') + '/'
         PATH = PATH_PREFIX + str(processId) + 'edges.TXT'
-        OUTPUT_PATH = PATH_PREFIX + str(processId) +'output.TXT'
+        OUTPUT_PATH = PATH_PREFIX + str(processId) + 'output.TXT'
 
         # Save txt file with data for blossom5 to read
         header_str = "{} {}".format(nbr_nodes, nbr_edges)
@@ -427,7 +413,6 @@ class MWPM():
 
         return solution
 
-
     def generate_classes(self):
         solution_list = [[None, None], [None, None]]
         class_chains = []
@@ -437,13 +422,13 @@ class MWPM():
             if np.any(self.get_layer(layer)):
                 for parity in range(2):
                     solution_list[layer][parity] = self.solve_layer(layer, parity)
-                    
+
             else:
                 operator = (not layer) * 2 + 1
                 tmp = Planar_code(self.code.system_size)
                 solution_list[layer][0] = tmp.qubit_matrix
                 solution_list[layer][1], _ = tmp.apply_logical(operator)
-        
+
         # combine layer corrections of varying parities to get all equivalence classes
         for layer0 in solution_list[0]:
             for layer1 in solution_list[1]:
@@ -498,111 +483,3 @@ def regular_mwpm(code):
     # generate solution matrix and store it in solution
     code_solution.qubit_matrix = mwpm.solve()
     return code_solution.define_equivalence_class()
-
-
-def main(args):
-    #TODO: add support for arguments
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument('test2', help='test adsfadd')
-    # parser.parse_args()
-    # print(args.test2)
-    # try:
-    #     opts, args = getopt.getopt(argv, "hn:d:p:", ["help"])
-    # except getopt.GetoptError as err:
-    #     print(err)
-    #     usage()
-    #     sys.exit(2)
-    # print(opts)
-    # print(args)
-
-    # for o, a in opts:
-    #     print(o)
-    #     if o in ("-h", "--help"):
-    #         usage()
-    #     elif o == "-d":
-    #         system_size = int(a)
-    #         print("d = {}".format(system_size))
-    #     elif o == "-n":
-    #         nbr_of_iterations = int(float(a))
-    #         print(nbr_of_iterations)
-
-
-    p_errors = [0.15]
-    system_size = 5
-    nbr_of_iterations = 1
-
-    #print(p_errors)
-    ground_state_kept_list = []
-
-    # iterate through p_errors
-    for p in p_errors:
-        print(p)
-        ground_states = 0
-        # iterate some number of times
-        for _ in range(nbr_of_iterations):
-            # create a torus and generate error according to p
-            code = Planar_code(system_size)
-            mwpm = MWPM(code)
-            nbr_of_vertex_nodes = 0
-            nbr_of_plaquette_nodes = 0
-
-            code.generate_random_error(p)
-            '''
-            code.qubit_matrix = np.array([[[0, 0, 0, 0, 0],
-                                           [0, 0, 0, 0, 0],
-                                           [0, 0, 0, 0, 0],
-                                           [0, 0, 0, 0, 2],
-                                           [0, 0, 0, 2, 0]],
-                                          [[0, 0, 0, 0, 0],
-                                           [0, 0, 0, 0, 0],
-                                           [0, 3, 0, 0, 0],
-                                           [0, 0, 0, 0, 0],
-                                           [0, 0, 0, 0, 0]]])
-            code.syndrom()
-            '''
-            code.plot('pre')
-            #code.define_equivalence_class()
-            # connect defect pairs given by mwpm
-            #mwpm.solve(random_pairing=True)
-            #code.plot('post')
-
-            class_corrections = class_sorted_mwpm(code)
-            for eq, c in enumerate(class_corrections):
-                c.syndrom()
-                c.plot('post' + str(eq))
-
-    # store results
-    #timestamp = time.ctime()
-    try:
-        os.mkdir('results')
-    except FileExistsError:
-        pass
-
-    PATH_ground2 = 'results/p_succes_MWPM_d={}.TXT'.format(system_size)
-
-    np.savetxt(PATH_ground2, ground_state_kept_list, fmt='%e', comments='')
-
-
-def main2():
-    code = Planar_code(6)
-    code.generate_random_error(0.1)
-    code.plot('pre')
-    lp = LineProfiler()
-    #lp.add_function(MWPM.solve)
-    #lp.add_function(MWPM.solve_layer)
-    #lp.add_function(MWPM.generate_MWPM)
-    lp.add_function(MWPM.generate_edges)
-    lp.add_function(MWPM.get_shortest_distance)
-    lp.add_function(manhattan_path)
-    lp_wrapper = lp(regular_mwpm)
-    res = lp_wrapper(code)
-    lp.print_stats()
-    #for i, c in enumerate(res):
-    #    c.syndrom()
-    #    c.plot('post' + str(i))
-    code.plot('post')
-
-if __name__ == "__main__":
-    #main(sys.argv[1:])
-    main2()
-
