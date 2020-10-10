@@ -194,7 +194,7 @@ def generate(file_path, params, max_capacity=10**5, nbr_datapoints=10**6,
         # this contant needs to be sufficiently big that rsync has time
         # to sync files before update, maybe change this to be
         # time-based instead.
-        if (i + 1) % 100 == 0:
+        if (i + 1) % 50 == 0:
             df = df.append(df_list)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
@@ -221,16 +221,16 @@ if __name__ == '__main__':
     # Get job array id, working directory
     array_id = os.getenv('SLURM_ARRAY_TASK_ID')
     local_dir = os.getenv('TMPDIR')
-    size = int(5 + 2 * int(int(array_id) / 32 + 0.0001) + 0.0001)
+    size = int((array_id % 50)/ 10)*2 + 17#int(5 + 2 * int(int(array_id) / 32 + 0.0001) + 0.0001)
     print('size:', size)
     params = {'code':           "planar",
               'method':         "STDC",
               'size':           size,
-              'p_error':        np.round((0.05 + float(int(array_id) % 32) / 200), decimals=3),
+              'p_error':        np.round(int(array_id/50)*0.005+ 0.17, decimals=3),#np.round((0.05 + float(int(array_id) % 32) / 200), decimals=3),
               'p_sampling':     0.25,
               'droplets':       1,
               'mwpm_init':      True,
-              'fixed_errors':   None,
+              'fixed_errors':   1000,
               'Nc':             size,
               'iters':          10,
               'conv_criteria':  'error_based',
