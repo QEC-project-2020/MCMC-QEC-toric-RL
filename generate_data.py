@@ -11,6 +11,7 @@ from src.planar_model import Planar_code
 from src.mcmc import *
 from decoders import *
 from src.mwpm import *
+from datetime import datetime
 
 
 # This function generates training data with help of the MCMC algorithm
@@ -24,14 +25,20 @@ def generate(file_path, params, max_capacity=10**5, nbr_datapoints=10**6,
 
     if params['method'] == "all":
         nbr_eq_class *= 3
-    # Creates data file if there is none otherwise adds to it
-    try:
-        df = pd.read_pickle(file_path)
-        nbr_existing_data = df.index[-1][0] + 1
-    except:
-        df = pd.DataFrame()
-        nbr_existing_data = 0
 
+    # Creates df
+    df = pd.DataFrame()
+    nbr_existing_data = 0
+
+    # Add parameters to dataframe
+    names = ['data_nr', 'type']
+    index_params = pd.MultiIndex.from_product([[-1], np.arange(1)],
+                                                names=names)
+    df_params = pd.DataFrame([[params]],
+                            index=index_params,
+                            columns=['data'])
+    df = df.append(df_params)
+                                
     print('\nDataFrame with ' + str(nbr_existing_data) +
           ' datapoints opened at: ' + str(file_path))
 
@@ -221,12 +228,12 @@ if __name__ == '__main__':
     # Get job array id, working directory
     array_id = os.getenv('SLURM_ARRAY_TASK_ID')
     local_dir = os.getenv('TMPDIR')
-    size = 15#int((int(array_id) % 50)/ 10)*2 + 17#int(5 + 2 * int(int(array_id) / 32 + 0.0001) + 0.0001)
+    size = 5#int((int(array_id) % 50)/ 10)*2 + 17#int(5 + 2 * int(int(array_id) / 32 + 0.0001) + 0.0001)
     print('size:', size)
     params = {'code':           "planar",
               'method':         "STDC",
               'size':           size,
-              'p_error':        np.round(int(array_id%5)*0.005+ 0.17, decimals=3)#np.round(int(array_id/50)*0.005+ 0.17, decimals=3),#np.round((0.05 + float(int(array_id) % 32) / 200), decimals=3),
+              'p_error':        np.round(int(array_id%5)*0.005+ 0.17, decimals=3),#np.round(int(array_id/50)*0.005+ 0.17, decimals=3),#np.round((0.05 + float(int(array_id) % 32) / 200), decimals=3),
               'p_sampling':     0.25,
               'droplets':       1,
               'mwpm_init':      True,
@@ -243,16 +250,18 @@ if __name__ == '__main__':
     print('Nbr of steps to take if applicable:', params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_size_'+str(params['size'])+'_method_'+params['method']+'_id_' + array_id + '_perror_' + str(params['p_error']) + '_extra201031' +  '.xz')
+    file_path = os.path.join(local_dir, 'data_id_' + str(array_id) + '_' + str(datetime.now().strftime("%d_%m_%Y_%H:%M:%S")) +  '_idtf_extra2.xz')
 
     # Generate data
     generate(file_path, params, nbr_datapoints=1100, fixed_errors=params['fixed_errors'])
 
     # View data file
-
     '''iterator = MCMCDataReader(file_path, params['size'])
     data = iterator.full()
-    for k in range(int(len(data)/2)):
+    params = data[0]
+    data = np.delete(data, 0)
+    print(params)
+    for k in np.arange(int(len(data)/2)):
         qubit_matrix = data[2*k].reshape(2,params['size'],params['size'])
         eq_distr = data[2*k+1]
 
