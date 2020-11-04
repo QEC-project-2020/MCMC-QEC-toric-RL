@@ -73,7 +73,6 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
             accept, convergence_reached = conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, conv_streak, SEQ, eps)
             if accept:
                 if convergence_reached:
-                    print('exited pteq at step', step)
                     break
                 conv_streak = ladder.tops0 - conv_start
             else:
@@ -720,20 +719,18 @@ if __name__ == '__main__':
             #t0 = time.time()
             #v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
             #print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'convergence:', convergece, time.time()-t0)
-            '''t0 = time.time()
+            t0 = time.time()
             distrs[i] = STDC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4, conv_mult=0)
             print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
             t0 = time.time()
             distrs[i] = STRC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4, conv_mult=0)
             print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
-            '''
             t0 = time.time()
             distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error)
             print('Try PTEQ       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
-            '''t0 = time.time()
+            t0 = time.time()
             distrs[i] = PTDC(copy.deepcopy(init_code), p_error=p_error, droplets=4, conv_mult=0)
             print('Try PTDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
             t0 = time.time()
             distrs[i] = PTRC(copy.deepcopy(init_code), p_error=p_error, droplets=4, conv_mult=0)
             print('Try PTRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
-            '''
