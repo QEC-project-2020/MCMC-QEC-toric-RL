@@ -226,14 +226,15 @@ def generate(file_path, params, max_capacity=10**5, nbr_datapoints=10**6,
 
 if __name__ == '__main__':
     # Get job array id, working directory
+    job_id = os.getenv('SLURM_ARRAY_JOB_ID')
     array_id = os.getenv('SLURM_ARRAY_TASK_ID')
     local_dir = os.getenv('TMPDIR')
-    size = 5#int((int(array_id) % 50)/ 10)*2 + 17#int(5 + 2 * int(int(array_id) / 32 + 0.0001) + 0.0001)
+    size = 25#int((int(array_id) % 50)/ 10)*2 + 17#int(5 + 2 * int(int(array_id) / 32 + 0.0001) + 0.0001)
     print('size:', size)
     params = {'code':           "planar",
               'method':         "STDC",
               'size':           size,
-              'p_error':        np.round(int(array_id%5)*0.005+ 0.17, decimals=3),#np.round(int(array_id/50)*0.005+ 0.17, decimals=3),#np.round((0.05 + float(int(array_id) % 32) / 200), decimals=3),
+              'p_error':        np.round(int(int(array_id)%5)*0.005+ 0.17, decimals=3),#np.round(int(array_id/50)*0.005+ 0.17, decimals=3),#np.round((0.05 + float(int(array_id) % 32) / 200), decimals=3),
               'p_sampling':     0.25,
               'droplets':       1,
               'mwpm_init':      True,
@@ -250,7 +251,7 @@ if __name__ == '__main__':
     print('Nbr of steps to take if applicable:', params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_id_' + str(array_id) + '_' + str(datetime.now().strftime("%d_%m_%Y_%H:%M:%S")) +  '_idtf_extra2.xz')
+    file_path = os.path.join(local_dir, 'data_id_' + job_id + '_' + array_id +  '_extra2size25.xz')
 
     # Generate data
     generate(file_path, params, nbr_datapoints=1100, fixed_errors=params['fixed_errors'])
