@@ -62,27 +62,33 @@ def generate(file_path, params, max_capacity=10**5, nbr_datapoints=10**6,
         # Initiate code
         if params['code'] == 'toric':
             init_code = Toric_code(params['size'])
-            init_code.generate_random_error(params['p_error'])
         elif params['code'] == 'planar':
             init_code = Planar_code(params['size'])
-            init_code.generate_random_error(params['p_error'])
+
+        # Generate random error
+        init_code.generate_random_error(params['p_error'])
+
+        # Start in completely random state, does not change syndrom
+        init_code.qubit_matrix, _ = init_code.apply_random_logical()
+        init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
+
+        # Save this object for later usage in pteq if mwpm init is True
+        init_code_pre_mwpm = copy.deepcopy(init_code)
 
         # Flatten initial qubit matrix to store in dataframe
         df_qubit = copy.deepcopy(init_code.qubit_matrix)
         eq_true = init_code.define_equivalence_class()
 
-        if params['mwpm_init']:  #get mwpm starting points
+        if params['mwpm_init']:  # get mwpm starting points
             init_code = class_sorted_mwpm(init_code)
             print('Starting in MWPM state')
-        else:  # randomize input matrix, no trace of seed.
-            init_code.qubit_matrix, _ = init_code.apply_random_logical()
-            init_code.qubit_matrix = init_code.apply_stabilizers_uniform()
+        else:
             print('Starting in random state')
 
         # Generate data for DataFrame storage  OBS now using full bincount,
         # change this
         if params['method'] == "PTEQ":
-            df_eq_distr = PTEQ(init_code,
+            df_eq_distr = PTEQ(init_code_pre_mwpm,
                                params['p_error'])
             if np.argmax(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
@@ -152,7 +158,25 @@ def generate(file_path, params, max_capacity=10**5, nbr_datapoints=10**6,
             df_eq_distr = np.concatenate((df_eq_distr1,
                                           df_eq_distr2,
                                           df_eq_distr3), axis=0)
+        elif params['method'] == "STDC_PTEQ_stepcomp":
 
+            pteq_converted_steps = int(params['steps'] / (params['Nc'] * params['iters']))
+            stdc_converted_steps = int(params['steps'] / (nbr_eq_class * 5))
+
+            # calculate using PTEQ
+            df_eq_distr = PTEQ(init_code_pre_mwpm,
+                               params['p_error'],
+                               steps=pteq_converted_steps)
+
+            # calculate using STDC
+            df_eq_distr2 = STDC(init_code,
+                                params['p_error'],
+                                p_sampling=params['p_sampling'],
+                                steps=stdc_converted_steps,
+                                droplets=params['droplets'])
+
+            df_eq_distr = np.concatenate((df_eq_distr1,
+                                          df_eq_distr2), axis=0)
         elif params['method'] == "eMWPM":
             out = class_sorted_mwpm(copy.deepcopy(init_code))
             lens = np.zeros((4))
@@ -229,32 +253,32 @@ if __name__ == '__main__':
     job_id = os.getenv('SLURM_ARRAY_JOB_ID')
     array_id = os.getenv('SLURM_ARRAY_TASK_ID')
     local_dir = os.getenv('TMPDIR')
-    size = 25#int((int(array_id) % 50)/ 10)*2 + 17#int(5 + 2 * int(int(array_id) / 32 + 0.0001) + 0.0001)
+    size = 11#int((int(array_id) % 50)/ 10)*2 + 17#int(5 + 2 * int(int(array_id) / 32 + 0.0001) + 0.0001)
     print('size:', size)
     params = {'code':           "planar",
-              'method':         "STDC",
+              'method':         "STDC_PTEQ_stepcomp",
               'size':           size,
-              'p_error':        np.round(int(int(array_id)%5)*0.005+ 0.17, decimals=3),#np.round(int(array_id/50)*0.005+ 0.17, decimals=3),#np.round((0.05 + float(int(array_id) % 32) / 200), decimals=3),
+              'p_error':        np.round(int(int(array_id)%32)*0.005+ 0.05, decimals=3),#np.round(int(array_id/50)*0.005+ 0.17, decimals=3),#np.round((0.05 + float(int(array_id) % 32) / 200), decimals=3),
               'p_sampling':     0.25,
               'droplets':       1,
               'mwpm_init':      True,
               'fixed_errors':   None,
               'Nc':             size,
               'iters':          10,
-              'conv_criteria':  'error_based',
+              'conv_criteria':  None,
               'SEQ':            2,
               'TOPS':           10,
               'eps':            0.1}
     # Steps is a function of code size L
-    params.update({'steps': int(5 * params['size'] ** 5)})
+    params.update({'steps': 10000000})#int(5 * params['size'] ** 5)})
 
     print('Nbr of steps to take if applicable:', params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_id_' + job_id + '_' + array_id +  '_extra2size25.xz')
+    file_path = os.path.join(local_dir, 'data_id_' + job_id + '_' + array_id +  '_STDC_PTEQ_stepcomp.xz')
 
     # Generate data
-    generate(file_path, params, nbr_datapoints=1100, fixed_errors=params['fixed_errors'])
+    generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
 
     # View data file
     '''iterator = MCMCDataReader(file_path, params['size'])

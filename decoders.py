@@ -73,6 +73,7 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
             accept, convergence_reached = conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, conv_streak, SEQ, eps)
             if accept:
                 if convergence_reached:
+                    print('exited pteq at step', step)
                     break
                 conv_streak = ladder.tops0 - conv_start
             else:
@@ -245,7 +246,7 @@ def STDC_droplet(chain, steps, randomize, conv_mult):
 
     # Do the metropolis steps and add to samples if new chains are found
     for step in range(int(steps)):
-        chain.update_chain_fast(5)
+        chain.update_chain_fast(5) # TODO this is a hard coded constant atm
         key = hash(chain.code.qubit_matrix.tobytes())
         if key not in samples:
             length = chain.code.count_errors()
@@ -689,11 +690,11 @@ def STRC(init_code, p_error, p_sampling=None, droplets=10, steps=20000, conv_mul
 
 
 if __name__ == '__main__':
-    size = 3
-    steps = 10 * size ** 4
+    size = 11
+    steps = 100000000000
     #reader = MCMCDataReader('data/data_7x7_p_0.19.xz', size)
     p_error = 0.10
-    p_sampling = 0.30
+    p_sampling = 0.25
     init_code = Planar_code(size)
     tries = 1
     distrs = np.zeros((tries, init_code.nbr_eq_classes))
@@ -702,7 +703,7 @@ if __name__ == '__main__':
     #lp = LineProfiler()
     #lp_wrapper = lp(STRC)
 
-    for i in range(2):
+    for i in range(20):
         init_code.generate_random_error(p_error)
         ground_state = init_code.define_equivalence_class()
         print('Ground state:', ground_state)
@@ -719,18 +720,20 @@ if __name__ == '__main__':
             #t0 = time.time()
             #v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
             #print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'convergence:', convergece, time.time()-t0)
-            t0 = time.time()
+            '''t0 = time.time()
             distrs[i] = STDC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4, conv_mult=0)
             print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
             t0 = time.time()
             distrs[i] = STRC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4, conv_mult=0)
             print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
+            '''
             t0 = time.time()
             distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error)
             print('Try PTEQ       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
-            t0 = time.time()
+            '''t0 = time.time()
             distrs[i] = PTDC(copy.deepcopy(init_code), p_error=p_error, droplets=4, conv_mult=0)
             print('Try PTDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
             t0 = time.time()
             distrs[i] = PTRC(copy.deepcopy(init_code), p_error=p_error, droplets=4, conv_mult=0)
             print('Try PTRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
+            '''
