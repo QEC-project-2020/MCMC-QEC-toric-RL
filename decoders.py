@@ -84,7 +84,7 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
         if conv_criteria == 'error_based':
             print('\n\nWARNING: PTEQ hit max number of steps before convergence:\t', step + 1, '\n\n')
 
-    return (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8)
+    return (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8), step + 1
 
 
 # convergence criteria used in paper and called ''felkriteriet''

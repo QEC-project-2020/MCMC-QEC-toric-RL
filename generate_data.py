@@ -65,8 +65,14 @@ def generate(file_path, params, max_capacity=10**5, nbr_datapoints=10**6,
         elif params['code'] == 'planar':
             init_code = Planar_code(params['size'])
 
-        # Generate random error
-        init_code.generate_random_error(params['p_error'])
+        ################### DO NOT SPLIT ######################################
+        # Generate random error                                            ####
+        init_code.generate_random_error(params['p_error'])                 ####
+                                                                           ####
+        # Flatten initial qubit matrix to store in dataframe               ####
+        df_qubit = copy.deepcopy(init_code.qubit_matrix)                   ####
+        eq_true = init_code.define_equivalence_class()                     ####
+        ################### DO NOT SPLIT ######################################
 
         # Start in completely random state, does not change syndrom
         init_code.qubit_matrix, _ = init_code.apply_random_logical()
@@ -74,10 +80,6 @@ def generate(file_path, params, max_capacity=10**5, nbr_datapoints=10**6,
 
         # Save this object for later usage in pteq if mwpm init is True
         init_code_pre_mwpm = copy.deepcopy(init_code)
-
-        # Flatten initial qubit matrix to store in dataframe
-        df_qubit = copy.deepcopy(init_code.qubit_matrix)
-        eq_true = init_code.define_equivalence_class()
 
         if params['mwpm_init']:  # get mwpm starting points
             init_code = class_sorted_mwpm(init_code)
@@ -88,8 +90,10 @@ def generate(file_path, params, max_capacity=10**5, nbr_datapoints=10**6,
         # Generate data for DataFrame storage  OBS now using full bincount,
         # change this
         if params['method'] == "PTEQ":
-            df_eq_distr = PTEQ(init_code_pre_mwpm,
+            df_eq_distr, n_steps = PTEQ(init_code_pre_mwpm,
                                params['p_error'])
+            # Add number of steps so that total can be calculated later
+            df_eq_distr = np.concatenate((df_eq_distr1, n_steps), axis=0)
             if np.argmax(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
@@ -164,7 +168,7 @@ def generate(file_path, params, max_capacity=10**5, nbr_datapoints=10**6,
             stdc_converted_steps = int(params['steps'] / (nbr_eq_class * 5))
 
             # calculate using PTEQ
-            df_eq_distr = PTEQ(init_code_pre_mwpm,
+            df_eq_distr, n_step = PTEQ(init_code_pre_mwpm,
                                params['p_error'],
                                steps=pteq_converted_steps)
 
