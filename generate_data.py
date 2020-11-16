@@ -164,7 +164,7 @@ def generate(file_path, params, max_capacity=10**5, nbr_datapoints=10**6,
             stdc_converted_steps = int(params['steps'] / (nbr_eq_class * 5))
 
             # calculate using PTEQ
-            df_eq_distr = PTEQ(init_code_pre_mwpm,
+            df_eq_distr1 = PTEQ(init_code_pre_mwpm,
                                params['p_error'],
                                steps=pteq_converted_steps)
 
@@ -225,7 +225,7 @@ def generate(file_path, params, max_capacity=10**5, nbr_datapoints=10**6,
         # this contant needs to be sufficiently big that rsync has time
         # to sync files before update, maybe change this to be
         # time-based instead.
-        if (i + 1) % 50 == 0:
+        if (i + 1) % 500 == 0:
             df = df.append(df_list)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
@@ -265,7 +265,7 @@ if __name__ == '__main__':
               'fixed_errors':   None,
               'Nc':             size,
               'iters':          10,
-              'conv_criteria':  None,
+              'conv_criteria':  'None',
               'SEQ':            2,
               'TOPS':           10,
               'eps':            0.1}
