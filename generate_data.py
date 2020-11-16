@@ -93,7 +93,7 @@ def generate(file_path, params, max_capacity=10**5, nbr_datapoints=10**6,
             df_eq_distr, n_steps = PTEQ(init_code_pre_mwpm,
                                params['p_error'])
             # Add number of steps so that total can be calculated later
-            df_eq_distr = np.concatenate((df_eq_distr1, n_steps), axis=0)
+            df_eq_distr = np.concatenate((df_eq_distr, np.array([n_steps])), axis=0)
             if np.argmax(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
@@ -257,10 +257,10 @@ if __name__ == '__main__':
     job_id = os.getenv('SLURM_ARRAY_JOB_ID')
     array_id = os.getenv('SLURM_ARRAY_TASK_ID')
     local_dir = os.getenv('TMPDIR')
-    size = 11#int((int(array_id) % 50)/ 10)*2 + 17#int(5 + 2 * int(int(array_id) / 32 + 0.0001) + 0.0001)
+    size = 3#int((int(array_id) % 50)/ 10)*2 + 17#int(5 + 2 * int(int(array_id) / 32 + 0.0001) + 0.0001)
     print('size:', size)
     params = {'code':           "planar",
-              'method':         "STDC_PTEQ_stepcomp",
+              'method':         "PTEQ",
               'size':           size,
               'p_error':        np.round(int(int(array_id)%32)*0.005+ 0.05, decimals=3),#np.round(int(array_id/50)*0.005+ 0.17, decimals=3),#np.round((0.05 + float(int(array_id) % 32) / 200), decimals=3),
               'p_sampling':     0.25,
@@ -274,7 +274,7 @@ if __name__ == '__main__':
               'TOPS':           10,
               'eps':            0.1}
     # Steps is a function of code size L
-    params.update({'steps': 10000000})#int(5 * params['size'] ** 5)})
+    params.update({'steps': 10000})#int(5 * params['size'] ** 5)})
 
     print('Nbr of steps to take if applicable:', params['steps'])
 
@@ -282,7 +282,7 @@ if __name__ == '__main__':
     file_path = os.path.join(local_dir, 'data_id_' + job_id + '_' + array_id +  '_STDC_PTEQ_stepcomp.xz')
 
     # Generate data
-    generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
+    generate(file_path, params, nbr_datapoints=100, fixed_errors=params['fixed_errors'])
 
     # View data file
     '''iterator = MCMCDataReader(file_path, params['size'])
