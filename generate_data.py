@@ -257,7 +257,7 @@ if __name__ == '__main__':
     job_id = os.getenv('SLURM_ARRAY_JOB_ID')
     array_id = os.getenv('SLURM_ARRAY_TASK_ID')
     local_dir = os.getenv('TMPDIR')
-    size = 3#int((int(array_id) % 50)/ 10)*2 + 17#int(5 + 2 * int(int(array_id) / 32 + 0.0001) + 0.0001)
+    size = 11#int((int(array_id) % 50)/ 10)*2 + 17#int(5 + 2 * int(int(array_id) / 32 + 0.0001) + 0.0001)
     print('size:', size)
     params = {'code':           "planar",
               'method':         "PTEQ",
@@ -274,7 +274,7 @@ if __name__ == '__main__':
               'TOPS':           10,
               'eps':            0.1}
     # Steps is a function of code size L
-    params.update({'steps': 10000})#int(5 * params['size'] ** 5)})
+    params.update({'steps': 1763})#int(5 * params['size'] ** 5)})
 
     print('Nbr of steps to take if applicable:', params['steps'])
 
@@ -282,7 +282,7 @@ if __name__ == '__main__':
     file_path = os.path.join(local_dir, 'data_id_' + job_id + '_' + array_id +  '_STDC_PTEQ_stepcomp.xz')
 
     # Generate data
-    generate(file_path, params, nbr_datapoints=100, fixed_errors=params['fixed_errors'])
+    generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
 
     # View data file
     '''iterator = MCMCDataReader(file_path, params['size'])
