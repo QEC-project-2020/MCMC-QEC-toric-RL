@@ -22,13 +22,108 @@ import random as rand
 # Original MCMC Parallel tempering method as descibed in high threshold paper
 # Parameters also adapted from that paper.
 
-NUM_POINTS = 20
+NUM_POINTS = 500
 
-def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=1000000, iters=10, conv_criteria=None):
+def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=50000000, iters=10, conv_criteria=None, mwpm_start = False):
+    # either 4 or 16 depending on choice of code topology
+
+    if mwpm_start == True:
+        mwpm_distr = np.zeros(init_code.nbr_eq_classes)
+        mwpm = class_sorted_mwpm(init_code)
+        for i in range(len(mwpm_distr)):
+            mwpm_distr[i] = -1*mwpm[i].count_errors()
+        init_code = mwpm[np.argmax(mwpm_distr)] #fixso that it is real mwpm
+
+    num_points = NUM_POINTS #number of data points in eq steps graph
+
+    nbr_eq_classes = init_code.nbr_eq_classes
+
+    mean_array = np.zeros((nbr_eq_classes, num_points)) # Output array
+
+    # If not specified, use size as per paper
+    Nc = Nc or init_code.system_size
+
+    # Warn about incorrect parameter inputs
+    if tops_burn >= TOPS:
+        print('tops_burn has to be smaller than TOPS')
+
+    # initialize variables
+    since_burn = 0
+    resulting_burn_in = 0
+    nbr_errors_bottom_chain = np.zeros(steps)
+
+    # list of class counts after burn in
+    eq = np.zeros([steps, nbr_eq_classes], dtype=np.uint32)
+
+    # used in error_based/majority_based instead of setting tops0 = TOPS
+    conv_start = 0
+    conv_streak = 0
+
+    # Convergence flag
+    convergence_reached = False
+
+    # initialize ladder of chains sampled at different temperatures
+    ladder = Ladder(p, init_code, Nc, 0.5)
+
+
+    # Main loop that runs until convergence or max steps (steps) are reached
+    step = 0
+    for stages in range(num_points):
+        for _ in range(int(steps/num_points)):
+            step = step+1
+            # run metropolis on every chain and perform chain swaps
+            ladder.step(iters)
+
+            # Get sample from eq-class of chain in lowest layer of ladder
+            current_eq = ladder.chains[0].code.define_equivalence_class()
+
+            # Start saving stats once burn-in period is over
+            if ladder.tops0 >= tops_burn:
+                since_burn = step - resulting_burn_in
+
+                eq[since_burn] = eq[since_burn - 1]
+                eq[since_burn][current_eq] += 1
+                nbr_errors_bottom_chain[since_burn] = ladder.chains[0].code.count_errors()
+            else:
+                # number of steps until tops0 = 2
+                resulting_burn_in += 1
+
+            # Check for convergence every 10 samples if burn-in period is over (and conv-crit is set)
+            if conv_criteria == 'error_based' and ladder.tops0 >= TOPS:
+                accept, convergence_reached = conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, conv_streak, SEQ, eps)
+                if accept:
+                    if convergence_reached:
+                        break
+                    conv_streak = ladder.tops0 - conv_start
+                else:
+                    conv_streak = 0
+                    conv_start = ladder.tops0
+        if ladder.tops0 >= tops_burn:
+            mean_array[:, stages] = (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8)
+        else:
+            print(stages)
+            mean_array[:, stages] = mwpm_distr #returns mwpm solution
+    # print warning if loop is exited without convergence
+    else:
+        if conv_criteria == 'error_based':
+            print('\n\nWARNING: PTEQ hit max number of steps before convergence:\t', step + 1, '\n\n')
+    #print(mean_array[:,-1])
+    #print(mwpm_distr)
+    return np.insert(mean_array, 0, mwpm_distr, axis=1)
+    #return mean_array
+
+
+
+
+"""def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=1000000, iters=10, conv_criteria=None, mwpm_start = False):
+
     # System size is determined from init_code
     size = init_code.system_size
 
-    init_code = class_sorted_mwpm(init_code)[init_code.define_equivalence_class()] #fixso that it is real mwpm
+    if mwpm_start == True:
+        init_code = class_sorted_mwpm(init_code)[init_code.define_equivalence_class()] #fixso that it is real mwpm
+
+
 
     num_points = NUM_POINTS #number of data points in eq steps graph
 
@@ -64,7 +159,7 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=1000
     # Initialize all chains in ladder with same state but different temperatures.
     for i in range(Nc):
         p_i = p + ((p_end - p) / (Nc - 1)) * i # Temperature (in p) for chain i
-        ladder.append(Chain(size, p_i))
+        ladder.append(Chain( p_i))
         ladder[i].code= copy.deepcopy(init_code)  # give all the same initial state
 
     # Set probability of application of logical operator in top chain
@@ -120,7 +215,7 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=1000
         mean_array[:, stages] = (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8)
 
     return mean_array
-
+"""
 @njit(cache=True) # r_flip calculates the quotient called r_flip in paper
 def r_flip(qubit_lo, p_lo, qubit_hi, p_hi):
     ne_lo = 0
@@ -198,12 +293,12 @@ def single_temp(init_code, p, max_iters, mwpm_start = False):
 def STDC(init_code, size, p_error, p_sampling, steps=20000, mwpm_start = False):
 
     # Create chain with p_sampling, this is allowed since N(n) is independet of p.
-    chain = Chain(size, p_sampling, copy.deepcopy(init_code))
+    chain = Chain(p_sampling, copy.deepcopy(init_code))
 
     # this is either 4 or 16, depending on what type of code is used.
     nbr_eq_classes = init_code.nbr_eq_classes
 
-    # this is where we save all samples in a dict, to find the unique ones.
+    # this is w we save all samples in a dict, to find the unique ones.
     qubitlist = [{},{},{},{}]
 
 
@@ -221,7 +316,7 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000, mwpm_start = False):
     beta = -log((p_error / 3) / (1 - p_error))
     chain_list = []
     for eq in range(nbr_eq_classes):
-        chain = Chain(size, p_sampling, copy.deepcopy(init_code))
+        chain = Chain( p_sampling, copy.deepcopy(init_code))
         chain.code.qubit_matrix = init_code.to_class(eq)
         chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
         chain_list.append(chain)
@@ -242,7 +337,7 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000, mwpm_start = False):
                 qubitlist[eq][chain_list[eq].code.qubit_matrix.tostring()] = np.count_nonzero(chain_list[eq].code.qubit_matrix)
 
             # compute Z_E
-            #print(eqdistr[eq, counter],'here')
+            #print(eqdistr[eq, counter],'')
             for key in qubitlist[eq]:
                 eqdistr[eq, counter] += exp(-beta * qubitlist[eq][key])
         counter+=1
@@ -279,12 +374,12 @@ def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000
     p_sampling = p_sampling or p_error
 
     # Create chain with p_sampling, this is allowed since N(n) is independet of p.
-    chain = Chain(size, p_sampling, copy.deepcopy(init_code))
+    chain = Chain( p_sampling, copy.deepcopy(init_code))
 
     # this is either 4 or 16, depending on what type of code is used.
     nbr_eq_classes = init_code.nbr_eq_classes
 
-    # this is where we save all samples in a dict, to find the unique ones.
+    # this is w we save all samples in a dict, to find the unique ones.
     qubitlist = [{},{},{},{}]
 
     # Z_E will be saved in eqdistr
@@ -307,7 +402,7 @@ def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000
     for eq in range(nbr_eq_classes):
         drop_list = []
         for _ in range(droplets):
-            chain = Chain(size, p_sampling, copy.deepcopy(init_code))
+            chain = Chain( p_sampling, copy.deepcopy(init_code))
             if mwpm_start == False:
                 chain.code.qubit_matrix = init_code.to_class(eq)
                 chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
@@ -347,24 +442,24 @@ def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000
     # Retrun normalized eq_distr
     return eqdistr
 
-@profile
+#@profile
 def STDC_rain_fast(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000, mwpm_start = False):
+
     # set p_sampling equal to p_error by default
     p_sampling = p_sampling or p_error
 
     # Create chain with p_sampling, this is allowed since N(n) is independet of p.
-    chain = Chain(size, p_sampling, copy.deepcopy(init_code))
+    chain = Chain( p_sampling, copy.deepcopy(init_code))
 
     # this is either 4 or 16, depending on what type of code is used.
     nbr_eq_classes = init_code.nbr_eq_classes
 
     num_points = NUM_POINTS
 
-    # this is where we save all samples in a dict, to find the unique ones.
+    # this is w we save all samples in a dict, to find the unique ones.
     qubitlist = [[{} for _ in range(num_points)] for _ in range(nbr_eq_classes)]
 
     # Z_E will be saved in eqdistr
-
 
     #raindrops = 10 #int(steps/100)
 
@@ -382,7 +477,7 @@ def STDC_rain_fast(init_code, size, p_error, p_sampling=None, droplets=5, steps=
          mwpm_distr = np.zeros((len(mwpm)))
 
     for eq in range(nbr_eq_classes):
-        chain = Chain(size, p_sampling, copy.deepcopy(init_code))
+        chain = Chain( p_sampling, copy.deepcopy(init_code))
         if mwpm_start == False:
             chain.code.qubit_matrix = init_code.to_class(eq)
             chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
@@ -405,7 +500,8 @@ def STDC_rain_fast(init_code, size, p_error, p_sampling=None, droplets=5, steps=
         for stage in range(num_points):
             for key in qubitlist[eq][stage]:
                 eqdistr[eq, stage] += exp(-beta * qubitlist[eq][stage][key])
-    tmp = np.insert(eqdistr, 0, mwpm_distr, axis=1)
+    tmp = np.insert(eqdistr, 0, mwpm_distr, axis=1) #add the MWPM solution to the start
+    #print(mwpm_distr)
     #print(tmp, tmp.shape)
     return tmp
 
@@ -436,12 +532,12 @@ def STRC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000
     num_points = NUM_POINTS
 
     # Create chain with p_sampling, this is allowed since N(n) is independet of p.
-    #chain = Chain(size, p_sampling, copy.deepcopy(init_code))
+    #chain = Chain( p_sampling, copy.deepcopy(init_code))
 
     chain_list = []
 
     for eq in range(nbr_eq_classes):
-        chain = Chain(size, p_sampling, copy.deepcopy(init_code))
+        chain = Chain( p_sampling, copy.deepcopy(init_code))
         chain.code.qubit_matrix = init_code.to_class(eq)
         chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
         chain_list.append(chain)
@@ -548,7 +644,7 @@ def STRC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000
 
                 next_shortest_count = len(short_unique[1])
 
-                # Handle rare cases where only one chain length is observed
+                # Handle rare cases w only one chain length is observed
                 if next_shortest[eq] != max_length:
                     next_shortest_fraction = next_shortest_count / len_counts[eq][next_shortest[eq]]
                     mean_fraction = 0.5 * (shortest_fraction + next_shortest_fraction * exp(-beta_sampling * (next_shortest[eq] - shortest[eq])))
@@ -660,7 +756,7 @@ def STRC(init_code, size, p_error, p_sampling=None, steps=20000, mwpm_start = Fa
     max_length = 2 * size ** 2
 
 
-    #chain = Chain(size, p_sampling, copy.deepcopy(init_code))  # this p needs not be the same as p, as it is used to determine how we sample N(n)
+    #chain = Chain( p_sampling, copy.deepcopy(init_code))  # this p needs not be the same as p, as it is used to determine how we sample N(n)
 
     chain_list = []
 
@@ -668,7 +764,7 @@ def STRC(init_code, size, p_error, p_sampling=None, steps=20000, mwpm_start = Fa
          mwpm = class_sorted_mwpm(init_code)
 
     for eq in range(nbr_eq_classes):
-        chain = Chain(size, p_sampling, copy.deepcopy(init_code))
+        chain = Chain( p_sampling, copy.deepcopy(init_code))
         if mwpm_start == False:
             chain.code.qubit_matrix = init_code.to_class(eq)
             chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
@@ -691,7 +787,7 @@ def STRC(init_code, size, p_error, p_sampling=None, steps=20000, mwpm_start = Fa
         for eq in range(nbr_eq_classes):
             #unique_lengths = {}
             #len_counts = {}
-            # List where first (last) element is stats of shortest (next shortest) length
+            # List w first (last) element is stats of shortest (next shortest) length
             # n is length of chain. N is number of unique chains of this length
             short_stats = short_stats_list[eq]
             #chain.code = init_code
@@ -755,7 +851,7 @@ def STRC(init_code, size, p_error, p_sampling=None, steps=20000, mwpm_start = Fa
             yn = (shortest_count-1) / len_counts[eq][shortest]
             if shortest_fraction != 1:
                 """for i in range(100):
-                    #print(len_counts[eq][shortest]*yn**(len_counts[eq][shortest]-1)-shortest_count, "here")
+                    #print(len_counts[eq][shortest]*yn**(len_counts[eq][shortest]-1)-shortest_count, "")
                     yn = ((len_counts[eq][shortest]-1)*yn**len_counts[eq][shortest]-(shortest_count-1))/(len_counts[eq][shortest]*yn**(len_counts[eq][shortest]-1)-shortest_count)
                 shortest_fraction = (1/(1-yn)-1)/shortest_count"""
                 m = len_counts[eq][shortest]
@@ -777,7 +873,7 @@ def STRC(init_code, size, p_error, p_sampling=None, steps=20000, mwpm_start = Fa
                     k = next_shortest_count
                     """yn = (next_shortest_count-1)/next_shortest_count
                     for i in range(1000):
-                        #print(len_counts[eq][next_shortest]*yn**(len_counts[eq][next_shortest]-1)-next_shortest_count, len_counts[eq][next_shortest]*yn**(len_counts[eq][next_shortest]-1),"here2")
+                        #print(len_counts[eq][next_shortest]*yn**(len_counts[eq][next_shortest]-1)-next_shortest_count, len_counts[eq][next_shortest]*yn**(len_counts[eq][next_shortest]-1),"2")
                         yn = ((len_counts[eq][next_shortest]-1)*yn**len_counts[eq][next_shortest]-(next_shortest_count-1))/(len_counts[eq][next_shortest]*yn**(len_counts[eq][next_shortest]-1)-next_shortest_count)
                     print("line 697", (1/(1-yn)-1), next_shortest_count)
                     next_shortest_fraction = (1/(1-yn)-1)/next_shortest_count"""
