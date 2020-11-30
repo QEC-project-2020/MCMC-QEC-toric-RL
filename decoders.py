@@ -70,7 +70,6 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
     step = 0
     for stages in range(num_points):
         for _ in range(int(steps/num_points)):
-            step = step+1
             # run metropolis on every chain and perform chain swaps
             ladder.step(iters)
 
@@ -80,7 +79,6 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
             # Start saving stats once burn-in period is over
             if ladder.tops0 >= tops_burn:
                 since_burn = step - resulting_burn_in
-
                 eq[since_burn] = eq[since_burn - 1]
                 eq[since_burn][current_eq] += 1
                 nbr_errors_bottom_chain[since_burn] = ladder.chains[0].code.count_errors()
@@ -98,10 +96,11 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
                 else:
                     conv_streak = 0
                     conv_start = ladder.tops0
+            step = step+1
         if ladder.tops0 >= tops_burn:
             mean_array[:, stages] = (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8)
         else:
-            print(stages)
+            #print(stages)
             mean_array[:, stages] = mwpm_distr #returns mwpm solution
     # print warning if loop is exited without convergence
     else:

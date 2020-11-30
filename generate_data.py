@@ -90,7 +90,7 @@ def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**
 
 
 
-        df_eq_distr = PTEQ(init_code, params['p'], steps=params['steps'], Nc = params['Nc'], mwpm_start = params['mwpm_start'])
+        df_eq_distr = PTEQ(init_code, params['p'], steps=params['steps'], Nc = params['Nc'], tops_burn = params['tops_burn'], mwpm_start = params['mwpm_start'])
         df_eq_distr5 = np.array(df_eq_distr)
 
         df_eq_distr = STDC_rain_fast(init_code, init_code.system_size, params['p_sampling'], droplets = params['raindrops'], steps = int(params['steps']/params['raindrops']),  mwpm_start =  params['mwpm_start'])
@@ -146,7 +146,6 @@ def main():
     t_start = time.time()
     nbr_datapoints = 1000
 
-
     mwpm_start = True
 
     # Get job array id, set working directory, set timer
@@ -162,12 +161,13 @@ def main():
     params = {'size': int(array_id),
               'p': 0.13,
               'Nc': 9,
-              'steps': 5000, #int(5*int(array_id)**5/100)*100, #int((20000 * (int(array_id)/5)**4)/100)*100, Needs to divide number of data poins
+              'steps': int(5*int(array_id)**5/1000)*1000, #int((20000 * (int(array_id)/5)**4)/100)*100, Needs to divide number of data poins
               'iters': 10,
               'conv_criteria': 'error_based',
-              'SEQ': 7,
+              'SEQ': 15,
               'TOPS': 10,
               'eps': 0.005,
+              'tops_burn': 0,
               'p_sampling': 0.25,
               'raindrops': 1,
               'mwpm_start': mwpm_start,
