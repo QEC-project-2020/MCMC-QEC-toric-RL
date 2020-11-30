@@ -260,7 +260,7 @@ if __name__ == '__main__':
     size = 11#int((int(array_id) % 50)/ 10)*2 + 17#int(5 + 2 * int(int(array_id) / 32 + 0.0001) + 0.0001)
     print('size:', size)
     params = {'code':           "planar",
-              'method':         "PTEQ",
+              'method':         "STDC",
               'size':           size,
               'p_error':        np.round(int(int(array_id)%32)*0.005+ 0.05, decimals=3),#np.round(int(array_id/50)*0.005+ 0.17, decimals=3),#np.round((0.05 + float(int(array_id) % 32) / 200), decimals=3),
               'p_sampling':     0.25,
@@ -274,7 +274,7 @@ if __name__ == '__main__':
               'TOPS':           10,
               'eps':            0.1}
     # Steps is a function of code size L
-    params.update({'steps': 1763})#int(5 * params['size'] ** 5)})
+    params.update({'steps': 935071})#int(5 * params['size'] ** 5)})
 
     print('Nbr of steps to take if applicable:', params['steps'])
 
