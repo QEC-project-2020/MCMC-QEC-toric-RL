@@ -90,10 +90,22 @@ def generate(file_path, params, max_capacity=10**5, nbr_datapoints=10**6,
         # Generate data for DataFrame storage  OBS now using full bincount,
         # change this
         if params['method'] == "PTEQ":
-            df_eq_distr, n_steps = PTEQ(init_code_pre_mwpm,
-                               params['p_error'])
+            # If we have an emwpm list, find the best class and use that as
+            # init code. Note that we prefer lower class numbers
+            best_class = 0
+            shortest = 9999999999
+            if type(init_code) == list:
+                for j in range(len(init_code)):
+                    if init_code[j].count_errors() < shortest:
+                        shortest = init_code[j].count_errors()
+                        best_class = j
+
+            # Run PTEQ with the shortest class
+            df_eq_distr, n_steps = PTEQ(init_code[best_class],
+                                        params['p_error'])
             # Add number of steps so that total can be calculated later
-            df_eq_distr = np.concatenate((df_eq_distr, np.array([n_steps])), axis=0)
+            df_eq_distr = np.concatenate((df_eq_distr, np.array([n_steps])),
+                                            axis=0)
             if np.argmax(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
