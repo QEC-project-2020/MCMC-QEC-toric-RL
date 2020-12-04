@@ -22,8 +22,8 @@ import random as rand
 # Original MCMC Parallel tempering method as descibed in high threshold paper
 # Parameters also adapted from that paper.
 
-NUM_POINTS = 500
-
+NUM_POINTS = 100
+#@profile
 def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=50000000, iters=10, conv_criteria=None, mwpm_start = False):
     # either 4 or 16 depending on choice of code topology
 
@@ -246,16 +246,14 @@ def conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, tops_accepted,
     else:
         return False, False
 
-#@profile
-def single_temp(init_code, p, max_iters, mwpm_start = False):
+##@profile
+def single_temp(init_code, p, steps, mwpm_start = False):
     nbr_eq_classes = init_code.nbr_eq_classes
     ground_state = init_code.define_equivalence_class()
     ladder = [] # list of chain objects
-    nbr_errors_chain = np.zeros((nbr_eq_classes, max_iters))
-
+    nbr_errors_chain = np.zeros((nbr_eq_classes, steps))
     num_points = NUM_POINTS
-    freq = int(max_iters/num_points)
-    mean_array = np.zeros((nbr_eq_classes, num_points-1))
+    mean_array = np.zeros((nbr_eq_classes, num_points))
     counter = 0
 
     """for eq in range(nbr_eq_classes):
@@ -265,9 +263,12 @@ def single_temp(init_code, p, max_iters, mwpm_start = False):
 
     if mwpm_start == True:
          mwpm = class_sorted_mwpm(init_code)
+         mwpm_distr = np.zeros(init_code.nbr_eq_classes)
+         for i in range(len(mwpm_distr)):
+             mwpm_distr[i] = mwpm[i].count_errors()
 
     for eq in range(nbr_eq_classes):
-        chain = Chain(init_code.system_size, p, copy.deepcopy(init_code))
+        chain = Chain(p, copy.deepcopy(init_code))
         if mwpm_start == False:
             chain.code.qubit_matrix = init_code.to_class(eq)
             chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
@@ -275,9 +276,13 @@ def single_temp(init_code, p, max_iters, mwpm_start = False):
         else:
             chain.code = mwpm[eq]
             ladder.append(chain)
-
-
-    for eq in range(nbr_eq_classes):
+    for i in range(num_points):
+        for eq in range(nbr_eq_classes):
+            for j in range(int(steps/num_points)):
+                ladder[eq].update_chain(5)
+                nbr_errors_chain[eq ,j*(i+1)] = ladder[eq].code.count_errors()
+            mean_array[eq][i] = np.average(nbr_errors_chain[eq ,:(i+1)*int(steps/num_points)])
+    """for eq in range(nbr_eq_classes):
         for j in range(max_iters):
             ladder[eq].update_chain(5)
             nbr_errors_chain[eq ,j] = ladder[eq].code.count_errors()
@@ -285,10 +290,10 @@ def single_temp(init_code, p, max_iters, mwpm_start = False):
             if j > 0 and j%freq == 0:
                 mean_array[eq][counter] = np.average(nbr_errors_chain[eq ,:j])
                 counter+=1
-        counter = 0
-    return mean_array
+        counter = 0"""
+    return np.insert(mean_array, 0, mwpm_distr, axis=1)
 
-#@profile
+##@profile
 def STDC(init_code, size, p_error, p_sampling, steps=20000, mwpm_start = False):
 
     # Create chain with p_sampling, this is allowed since N(n) is independet of p.
