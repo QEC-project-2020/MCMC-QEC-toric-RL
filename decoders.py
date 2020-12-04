@@ -23,8 +23,9 @@ import random as rand
 # Parameters also adapted from that paper.
 
 NUM_POINTS = 100
+
 #@profile
-def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=50000000, iters=10, conv_criteria=None, mwpm_start = False):
+def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=50000000, iters=5, conv_criteria=None, mwpm_start = False):
     # either 4 or 16 depending on choice of code topology
 
     if mwpm_start == True:
@@ -246,7 +247,7 @@ def conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, tops_accepted,
     else:
         return False, False
 
-##@profile
+#@profile
 def single_temp(init_code, p, steps, mwpm_start = False):
     nbr_eq_classes = init_code.nbr_eq_classes
     ground_state = init_code.define_equivalence_class()
@@ -293,7 +294,7 @@ def single_temp(init_code, p, steps, mwpm_start = False):
         counter = 0"""
     return np.insert(mean_array, 0, mwpm_distr, axis=1)
 
-##@profile
+####@profile
 def STDC(init_code, size, p_error, p_sampling, steps=20000, mwpm_start = False):
 
     # Create chain with p_sampling, this is allowed since N(n) is independet of p.
