@@ -376,6 +376,94 @@ def STDC_returnall(init_code, p_error, p_sampling=None, droplets=10, steps=20000
     return (np.divide(eqdistr, sum(eqdistr)) * 100), qubitlist
 
 
+def STDC_droplet_biased(chain, steps, randomize):
+    # All unique chains will be saved in samples
+    samples = {}
+
+    # Start in high energy state
+    if randomize:
+        chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
+
+    # Do the metropolis steps and add to samples if new chains are found
+    for step in range(int(steps)):
+        chain.update_chain_fast(5)
+        key = hash(chain.code.qubit_matrix.tobytes())
+        if key not in samples:
+            lengths = chain.code.count_errors_xyz()
+            samples[key] = lengths
+
+    return samples
+
+  
+def STDC_biased(init_code, p_xyz, p_sampling=None, droplets=10, steps=20000):
+    # p_xyz is an array (p_x, p_y, p_z)
+    # set p_sampling equal to sum of p_xyz by default
+    p_sampling = p_sampling or p_xyz.sum()
+
+    if type(init_code) == list:
+        # this is either 4 or 16, depending on what type of code is used.
+        nbr_eq_classes = init_code[0].nbr_eq_classes
+        # make sure one init code is provided for each class
+        assert len(init_code) == nbr_eq_classes, 'if init_code is a list, it has to contain one code for each class'
+        eq_chains = [Chain(p_sampling, copy.deepcopy(code)) for code in init_code]
+        # don't apply uniform stabilizers if low energy inits are provided
+        randomize = False
+
+    else:
+        # this is either 4 or 16, depending on what type of code is used.
+        nbr_eq_classes = init_code.nbr_eq_classes
+        # Create chain with p_sampling, this is allowed since N(n) is independet of p.
+        eq_chains = [None] * nbr_eq_classes
+        for eq in range(nbr_eq_classes):
+            eq_chains[eq] = Chain(p_sampling, copy.deepcopy(init_code))
+            eq_chains[eq].code.qubit_matrix = eq_chains[eq].code.to_class(eq)
+        # apply uniform stabilizers, i.e. rain
+        randomize = True
+
+    # this is where we save all samples in a dict, to find the unique ones.
+    qubitlists = [{}, {}, {}, {}]
+
+    # Z_E will be saved in eqdistr
+    eqdistr = np.zeros(nbr_eq_classes)
+
+    # deal with infinities
+    check_finite = np.any(p_xyz == 0)
+    p_infinite = (p_xyz == 0)
+
+    # error-model
+    beta = -np.log((p_xyz / 3) / (1 - p_xyz), where=np.logical_not(p_infinite))
+
+    if droplets > 1:
+        pool = Pool(droplets)
+
+    for eq in range(nbr_eq_classes):
+        # go to class eq and apply stabilizers
+        chain = eq_chains[eq]
+
+        if droplets == 1:
+            qubitlists[eq] = STDC_droplet_biased(copy.deepcopy(chain), steps, randomize)
+        else:
+            args = [(copy.deepcopy(chain), steps, randomize) for _ in range(droplets)]
+            output = pool.starmap_async(STDC_droplet_biased, args).get()
+            for res in output:
+                qubitlists[eq].update(res)
+
+        # compute Z_E
+        # beta and counts are arrays whose dot product corresponds to the chain probability
+        # deal with infinities
+        if check_finite:
+            for counts in qubitlists[eq].values():
+                # if p_i = 0, a chain with i-errors has probability 0 and need not be counted
+                if not np.any(counts[p_infinite]):
+                    eqdistr[eq] += np.exp(-np.sum(beta * counts))
+        # if all p are nonzero, no need to deal with infinities
+        else:
+            for key in qubitlists[eq]:
+                eqdistr[eq] += np.exp(-np.sum(beta * qubitlists[eq][key]))
+
+    # Retrun normalized eq_distr
+    return (np.divide(eqdistr, sum(eqdistr)) * 100), qubitlists
+
 def PTRC_droplet(ladder, steps, iters, conv_mult):
 
     shortest = 2 * ladder.chains[0].code.system_size ** 2
@@ -758,7 +846,7 @@ if __name__ == '__main__':
     #lp = LineProfiler()
     #lp_wrapper = lp(STRC)
 
-    for i in range(20):
+    for i in range(1):
         init_code.generate_random_error(p_error)
         ground_state = init_code.define_equivalence_class()
         print('Ground state:', ground_state)
@@ -776,17 +864,22 @@ if __name__ == '__main__':
             #v1, most_likely_eq, convergece = single_temp(init_code, p=p_error, max_iters=steps, eps=0.005, conv_criteria = None)
             #print('Try single_temp', i+1, ':', v1, 'most_likely_eq', most_likely_eq, 'convergence:', convergece, time.time()-t0)
             t0 = time.time()
-            distrs[i] = STDC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4, conv_mult=0)
-            print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
-            t0 = time.time()
-            distrs[i] = STRC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4, conv_mult=0)
-            print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
-            t0 = time.time()
-            distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error)
-            print('Try PTEQ       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
-            t0 = time.time()
-            distrs[i] = PTDC(copy.deepcopy(init_code), p_error=p_error, droplets=4, conv_mult=0)
-            print('Try PTDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
-            t0 = time.time()
-            distrs[i] = PTRC(copy.deepcopy(init_code), p_error=p_error, droplets=4, conv_mult=0)
-            print('Try PTRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
+            distrs[i], data = STDC_biased(copy.deepcopy(init_code), np.array([0.1, 0.1, 0.1]), p_sampling=p_sampling, steps=1000, droplets=10)
+            print('Try STDC_biased       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
+            print(data)
+
+            # t0 = time.time()
+            # distrs[i] = STDC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4, conv_mult=0)
+            # print('Try STDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
+            # t0 = time.time()
+            # distrs[i] = STRC(copy.deepcopy(init_code), p_error=p_error, p_sampling=p_sampling, steps=steps, droplets=4, conv_mult=0)
+            # print('Try STRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
+            # t0 = time.time()
+            # distrs[i] = PTEQ(copy.deepcopy(init_code), p=p_error)
+            # print('Try PTEQ       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
+            # t0 = time.time()
+            # distrs[i] = PTDC(copy.deepcopy(init_code), p_error=p_error, droplets=4, conv_mult=0)
+            # print('Try PTDC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)
+            # t0 = time.time()
+            # distrs[i] = PTRC(copy.deepcopy(init_code), p_error=p_error, droplets=4, conv_mult=0)
+            # print('Try PTRC       ', i+1, ':', distrs[i], 'most_likely_eq', np.argmax(distrs[i]), 'time:', time.time()-t0)

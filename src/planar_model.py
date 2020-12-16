@@ -26,6 +26,9 @@ class Planar_code():
         self.qubit_matrix[1, :, -1] = 0
         self.syndrom()
 
+    def count_errors_xyz(self):
+        return _count_errors_xyz(self.qubit_matrix)
+
     def count_errors(self):
         return _count_errors(self.qubit_matrix)
 
@@ -138,6 +141,14 @@ class Planar_code():
 @njit('(uint8[:,:,:],)')
 def _count_errors(qubit_matrix):
     return np.count_nonzero(qubit_matrix)
+
+
+@njit('(uint8[:,:,:],)')
+def _count_errors_xyz(qubit_matrix):
+    errors = np.bincount(qubit_matrix.flatten())
+    errors_format = np.zeros(3)
+    errors_format[:errors.shape[0]-1] = errors[1:]
+    return errors_format.astype(np.int32)
 
 
 # At the moment numba is limited in compiling classes
