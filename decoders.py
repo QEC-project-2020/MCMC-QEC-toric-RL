@@ -294,39 +294,44 @@ def single_temp(init_code, p, steps, mwpm_start = False):
         counter = 0"""
     return np.insert(mean_array, 0, mwpm_distr, axis=1)
 
-####@profile
+#@profile
 def STDC(init_code, size, p_error, p_sampling, steps=20000, mwpm_start = False):
+    p_sampling = p_sampling or p_error
 
     # Create chain with p_sampling, this is allowed since N(n) is independet of p.
-    chain = Chain(p_sampling, copy.deepcopy(init_code))
-
-    # this is either 4 or 16, depending on what type of code is used.
-    nbr_eq_classes = init_code.nbr_eq_classes
-
+    #chain = Chain(p_sampling, copy.deepcopy(init_code))
+    chain_list = []
     # this is w we save all samples in a dict, to find the unique ones.
     qubitlist = [{},{},{},{}]
-
-
-    num_points = NUM_POINTS
-    #raindrops = 10 #int(steps/100)
+    # this is either 4 or 16, depending on what type of code is used.
+    nbr_eq_classes = init_code.nbr_eq_classes
+    num_points = NUM_POINTS  # Number of data points for the steps plot
 
     freq = int(steps/num_points)
 
     # Z_E will be saved in eqdistr
     eqdistr = np.zeros((nbr_eq_classes, num_points))
 
-
     # error-model
     counter = 0
-    beta = -log((p_error / 3) / (1 - p_error))
-    chain_list = []
-    for eq in range(nbr_eq_classes):
-        chain = Chain( p_sampling, copy.deepcopy(init_code))
-        chain.code.qubit_matrix = init_code.to_class(eq)
-        chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
-        chain_list.append(chain)
+
+    beta = -log((p_error / 3) / (1 - p_error))  #Inverse temperature for sampling
 
     total_counts = 0
+
+    if mwpm_start == True:
+         mwpm = class_sorted_mwpm(init_code)
+         mwpm_distr = np.zeros((len(mwpm)))
+
+    for eq in range(nbr_eq_classes):
+        chain = Chain( p_sampling, copy.deepcopy(init_code))
+        if mwpm_start == False:
+            chain.code.qubit_matrix = init_code.to_class(eq)
+            chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
+        else:
+            chain.code= mwpm[eq]
+            mwpm_distr[eq] = -1*mwpm[eq].count_errors() #the shortest chain will give the correct class
+        chain_list.append(chain)
 
 
     for i in range(num_points):
@@ -348,7 +353,7 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000, mwpm_start = False):
         counter+=1
 
     # Retrun normalized eq_distr
-    return eqdistr
+    return np.insert(eqdistr, 0, mwpm_distr, axis=1)
 
 def STDC_droplet(input_data_tuple):
     # All unique chains will be saved in samples
