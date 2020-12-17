@@ -93,7 +93,9 @@ def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**
         df_eq_distr7 = np.array(df_eq_distr)
 
 
-        df_eq_distr = STDC_rain_fast(init_code, init_code.system_size, params['p'], p_sampling = params['p_sampling'], droplets = params['raindrops'], steps = int(params['steps']/params['raindrops']),  mwpm_start =  params['mwpm_start'])
+        #df_eq_distr = STDC_rain_fast(init_code, init_code.system_size, params['p'], p_sampling = params['p_sampling'], droplets = params['raindrops'], steps = int(params['steps']/params['raindrops']),  mwpm_start =  params['mwpm_start'])
+        #df_eq_distr6 = np.array(df_eq_distr)
+        df_eq_distr = STDC(init_code, init_code.system_size, params['p'], p_sampling = params['p_sampling'], steps = params['steps'],  mwpm_start =  params['mwpm_start'])
         df_eq_distr6 = np.array(df_eq_distr)
 
 
@@ -101,8 +103,8 @@ def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**
         df_eq_distr5 = np.array(df_eq_distr)
 
         if np.argmax(df_eq_distr6[:,-1]) != start_code.define_equivalence_class():
-            logical_error_counter_STDC_rain+=1
-        print("failures STDC:", logical_error_counter_STDC_rain)
+            logical_error_counter_STDC+=1
+        print("failures STDC:", logical_error_counter_STDC)
         if np.argmax(df_eq_distr5[:,-1]) != start_code.define_equivalence_class():
             logical_error_counter_PTEQ +=1
         print("failures PTEQ:", logical_error_counter_PTEQ)
@@ -120,7 +122,7 @@ def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**
         df_eq_distr7 = (df_eq_distr7.transpose()).tolist()
 
         #df_entry = pd.DataFrame([[df_qubit, df_eq_distr0, df_eq_distr1, df_eq_distr2, df_eq_distr3, df_eq_distr4]], columns = ['data', 'eq_steps_PTEQ' , 'eq_steps_ST', 'eq_steps_STDC','eq_steps_STRC', 'eq_steps_STDC_rain']) #['data'])
-        df_entry = pd.DataFrame([[df_qubit, df_eq_distr6, df_eq_distr5, df_eq_distr7]], columns = ['data','eq_steps_STDC_rain_fast', 'eq_steps_PTEQ' ,'eq_steps_ST']) #['data'])
+        df_entry = pd.DataFrame([[df_qubit, df_eq_distr6, df_eq_distr5, df_eq_distr7]], columns = ['data','eq_steps_STDC', 'eq_steps_PTEQ' ,'eq_steps_ST']) #['data'])
         # Add dataframes to temporary list to shorten computation time
 
         #df_list.append(df_qubit)
@@ -129,7 +131,7 @@ def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**
         # Every x iteration adds data to data file from temporary list
         # and clears temporary list
 
-        if (i + 1) % 5 == 0:
+        if (i + 1) % 1000 == 0:
             df = df.append(df_list, ignore_index = True)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
@@ -152,7 +154,7 @@ def main():
     # All paramteters for data generation is set here,
     # some of which may be irrelevant depending on the choice of others
     t_start = time.time()
-    nbr_datapoints = 1
+    nbr_datapoints = 100
 
     mwpm_start = True
 
@@ -169,7 +171,7 @@ def main():
     params = {'size': int(array_id),
               'p': 0.13,
               'Nc': None,
-              'steps': int((array_id**5)/1000)*1000, #Needs to divide number of data poins
+              'steps': int(10*(int(array_id)**5)/1000)*1000, #Needs to divide number of data poins
               'iters': 10,
               'conv_criteria': 'error_based',
               'SEQ': 15,
@@ -191,7 +193,7 @@ def main():
 
     # Generate data
     #methods = ["PTEQ", "ST", "STDC", "STRC", "STDC_rain"]
-    methods = ["STDC_rain_fast", "PTEQ", "ST"]
+    methods = ["STDC", "PTEQ", "ST"]
     generate(file_path, params, timeout, nbr_datapoints = nbr_datapoints)
     unpickled_df  = pickle_reader(file_path)
     qubits = unpickled_df['data'].to_numpy()
