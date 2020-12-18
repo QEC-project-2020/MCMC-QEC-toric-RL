@@ -22,7 +22,7 @@ import random as rand
 # Original MCMC Parallel tempering method as descibed in high threshold paper
 # Parameters also adapted from that paper.
 
-NUM_POINTS = 100
+NUM_POINTS = 80
 
 #@profile
 def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=50000000, iters=5, conv_criteria=None, mwpm_start = False):
@@ -112,110 +112,6 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
     return np.insert(mean_array, 0, mwpm_distr, axis=1)
     #return mean_array
 
-
-
-
-"""def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=1000000, iters=10, conv_criteria=None, mwpm_start = False):
-
-    # System size is determined from init_code
-    size = init_code.system_size
-
-    if mwpm_start == True:
-        init_code = class_sorted_mwpm(init_code)[init_code.define_equivalence_class()] #fixso that it is real mwpm
-
-
-
-    num_points = NUM_POINTS #number of data points in eq steps graph
-
-
-    # either 4 or 16 depending on choice of code topology
-    nbr_eq_classes = init_code.nbr_eq_classes
-    mean_array = np.zeros((nbr_eq_classes, num_points))
-
-    # If not specified, use size as per paper
-    Nc = Nc or size
-
-    # Warn about incorrect parameter inputs
-    if tops_burn >= TOPS:
-        print('tops_burn has to be smaller than TOPS')
-
-    ladder = []  # ladder to store all parallel chains with diffrent temperatures
-    p_end = 0.75  # p at top chain is 0.75 (all I,X,Y,Z equally likely)
-
-    # initialize variables
-    tops0 = 0
-    since_burn = 0
-    resulting_burn_in = 0
-    nbr_errors_bottom_chain = np.zeros(steps)
-
-    eq = np.zeros([steps, nbr_eq_classes], dtype=np.uint32)  # list of class counts after burn in
-
-    # used in error_based/majority_based instead of setting tops0 = TOPS
-    tops_change = 0
-
-    # Convergence flag
-    convergence_reached = False
-
-    # Initialize all chains in ladder with same state but different temperatures.
-    for i in range(Nc):
-        p_i = p + ((p_end - p) / (Nc - 1)) * i # Temperature (in p) for chain i
-        ladder.append(Chain( p_i))
-        ladder[i].code= copy.deepcopy(init_code)  # give all the same initial state
-
-    # Set probability of application of logical operator in top chain
-    ladder[Nc - 1].p_logical = 0.5
-
-    for stages in range(num_points):
-        # Main loop that runs until convergence or max steps (steps) are reached
-        for j in range(int(steps/num_points)):
-            # Run Metropolis steps for each chain in ladder
-            for i in range(Nc):
-                ladder[i].update_chain(iters)
-            # Flag are used to know what chains originating in the top layer of the ladder has found their way down
-            # The top chain always generates chains with flag "1". Once such a chain reaches the bottom the flag is
-            # reset to 0
-            ladder[-1].flag = 1
-
-            # current_eq attempt flips of chains from the top down
-            for i in reversed(range(Nc - 1)):
-                if r_flip(ladder[i].code.qubit_matrix, ladder[i].p, ladder[i + 1].code.qubit_matrix, ladder[i + 1].p):
-                    ladder[i].code, ladder[i + 1].code = ladder[i + 1].code, ladder[i].code
-                    ladder[i].flag, ladder[i + 1].flag = ladder[i + 1].flag, ladder[i].flag
-
-            # Update bottom chain flag and add to tops0
-            if ladder[0].flag == 1:
-                tops0 += 1
-                ladder[0].flag = 0
-
-            # Get sample from eq-class of chain in lowest layer of ladder
-            current_eq = ladder[0].code.define_equivalence_class()
-
-            # Start saving stats once burn-in period is over
-            if tops0 >= tops_burn:
-                since_burn = j - resulting_burn_in
-
-                eq[since_burn] = eq[since_burn - 1]
-                eq[since_burn][current_eq] += 1
-                nbr_errors_bottom_chain[since_burn] = ladder[0].code.count_errors()
-            else:
-                # number of steps until tops0 = 2
-                resulting_burn_in += 1
-
-            # Check for convergence every 10 samples if burn-in period is over (and conv-crit is set)
-            if not convergence_reached and tops0 >= TOPS and not since_burn % 10:
-                if conv_criteria == 'error_based':
-                    tops_accepted = tops0 - tops_change
-                    accept, convergence_reached = conv_crit_error_based_PT(nbr_errors_bottom_chain, since_burn, tops_accepted, SEQ, eps)
-                    if not accept:
-                        tops_change = tops0
-            if convergence_reached:
-                break
-
-        #print(mean_array)
-        mean_array[:, stages] = (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8)
-
-    return mean_array
-"""
 @njit(cache=True) # r_flip calculates the quotient called r_flip in paper
 def r_flip(qubit_lo, p_lo, qubit_hi, p_hi):
     ne_lo = 0
@@ -302,7 +198,7 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000, mwpm_start = False):
     #chain = Chain(p_sampling, copy.deepcopy(init_code))
     chain_list = []
     # this is w we save all samples in a dict, to find the unique ones.
-    qubitlist = [{},{},{},{}]
+    samples = [{},{},{},{}]
     # this is either 4 or 16, depending on what type of code is used.
     nbr_eq_classes = init_code.nbr_eq_classes
     num_points = NUM_POINTS  # Number of data points for the steps plot
@@ -338,18 +234,23 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000, mwpm_start = False):
         for eq in range(nbr_eq_classes):
             # go to class eq and apply stabilizers
             for _ in range(int(steps/num_points)):
-                total_counts+=1
+                #total_counts+=1
                 #if int(total_counts/4)%int(steps/raindrops) == 0:
                     #print("STDC", int(total_counts/4))
                 #    chain_list[eq].code.qubit_matrix = chain_list[eq].code.apply_stabilizers_uniform()
                 chain_list[eq].update_chain(5)
+                key = hash(chain_list[eq].code.qubit_matrix.tobytes())
+                if key not in samples[eq]:
+                    length = chain_list[eq].code.count_errors()
+                    samples[eq][key] = length
+                    # if new shortest chain found, extend sampling time
                 # add to dict (only gets added if it is new)
-                qubitlist[eq][chain_list[eq].code.qubit_matrix.tostring()] = np.count_nonzero(chain_list[eq].code.qubit_matrix)
+                #samples[eq][chain_list[eq].code.qubit_matrix.tostring()] = np.count_nonzero(chain_list[eq].code.qubit_matrix)
 
             # compute Z_E
             #print(eqdistr[eq, counter],'')
-            for key in qubitlist[eq]:
-                eqdistr[eq, counter] += exp(-beta * qubitlist[eq][key])
+            for key in samples[eq]:
+                eqdistr[eq, counter] += exp(-beta * samples[eq][key])
         counter+=1
 
     # Retrun normalized eq_distr
@@ -452,7 +353,7 @@ def STDC_rain(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000
     # Retrun normalized eq_distr
     return eqdistr
 
-#@profile
+###@profile
 def STDC_rain_fast(init_code, size, p_error, p_sampling=None, droplets=5, steps=20000, mwpm_start = False):
 
     # set p_sampling equal to p_error by default
