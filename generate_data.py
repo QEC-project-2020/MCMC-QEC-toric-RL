@@ -111,6 +111,7 @@ def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**
         if np.argmin(df_eq_distr7[:,-1]) != start_code.define_equivalence_class():
             logical_error_counter_ST +=1
         print("failures ST:", logical_error_counter_ST)
+        print("Test", flush=True)
 
 
         names = ['data_nr', 'layer', 'x', 'y']
@@ -131,7 +132,7 @@ def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**
         # Every x iteration adds data to data file from temporary list
         # and clears temporary list
 
-        if (i + 1) % 1 == 0:
+        if (i + 1) % 100 == 0:
             df = df.append(df_list, ignore_index = True)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
@@ -154,7 +155,7 @@ def main():
     # All paramteters for data generation is set here,
     # some of which may be irrelevant depending on the choice of others
     t_start = time.time()
-    nbr_datapoints = 10000
+    nbr_datapoints = 1
 
     mwpm_start = True
 
@@ -170,8 +171,8 @@ def main():
         print('invalid sysargs')
     params = {'size': int(array_id),
               'p': 0.13,
-              'Nc': None,
-              'steps': int(5*(int(array_id)**5)/1000)*1000, #Needs to divide number of data poins
+              'Nc': None,    #OBS! Should be equal to system size d
+              'steps': 1000,#int(5*(int(array_id)**5)/1000)*1000, #int(5*(int(array_id)**5)/1000)*1000, #Needs to divide number of data poins
               'iters': 10,
               'conv_criteria': 'error_based',
               'SEQ': 15,

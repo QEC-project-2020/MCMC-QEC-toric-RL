@@ -22,7 +22,7 @@ import random as rand
 # Original MCMC Parallel tempering method as descibed in high threshold paper
 # Parameters also adapted from that paper.
 
-NUM_POINTS = 80
+NUM_POINTS = 100
 
 #@profile
 def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=50000000, iters=5, conv_criteria=None, mwpm_start = False):
@@ -211,7 +211,7 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000, mwpm_start = False):
     # error-model
     counter = 0
 
-    beta = -log((p_error / 3) / (1 - p_error))  #Inverse temperature for sampling
+    beta = -log((p_error / 3) / (1 - p_error))  #Inverse temperature for calculating sum
 
     total_counts = 0
 
@@ -243,7 +243,6 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000, mwpm_start = False):
                 if key not in samples[eq]:
                     length = chain_list[eq].code.count_errors()
                     samples[eq][key] = length
-                    # if new shortest chain found, extend sampling time
                 # add to dict (only gets added if it is new)
                 #samples[eq][chain_list[eq].code.qubit_matrix.tostring()] = np.count_nonzero(chain_list[eq].code.qubit_matrix)
 
