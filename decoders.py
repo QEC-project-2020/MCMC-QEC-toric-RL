@@ -22,7 +22,7 @@ import random as rand
 # Original MCMC Parallel tempering method as descibed in high threshold paper
 # Parameters also adapted from that paper.
 
-NUM_POINTS = 100
+NUM_POINTS = 10
 
 #@profile
 def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=50000000, iters=5, conv_criteria=None, mwpm_start = False):
@@ -193,6 +193,7 @@ def single_temp(init_code, p, steps, mwpm_start = False):
 #@profile
 def STDC(init_code, size, p_error, p_sampling, steps=20000, mwpm_start = False):
     p_sampling = p_sampling or p_error
+    print("p_sampling =", p_sampling)
 
     # Create chain with p_sampling, this is allowed since N(n) is independet of p.
     #chain = Chain(p_sampling, copy.deepcopy(init_code))
@@ -206,7 +207,8 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000, mwpm_start = False):
     freq = int(steps/num_points)
 
     # Z_E will be saved in eqdistr
-    eqdistr = np.zeros((nbr_eq_classes, num_points))
+    lengths = 2*size**2+1
+    eqdistr = np.zeros((nbr_eq_classes, num_points, lengths))
 
     # error-model
     counter = 0
@@ -249,11 +251,15 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000, mwpm_start = False):
             # compute Z_E
             #print(eqdistr[eq, counter],'')
             for key in samples[eq]:
-                eqdistr[eq, counter] += exp(-beta * samples[eq][key])
+                #print("length:" , samples[eq][key])
+                eqdistr[eq, counter, samples[eq][key]] += 1#np.exp(-beta*samples[eq][key])
         counter+=1
 
     # Retrun normalized eq_distr
-    return np.insert(eqdistr, 0, mwpm_distr, axis=1)
+    print(eqdistr.shape)
+    z = np.exp(-beta*np.arange(lengths))
+
+    return np.insert(np.sum(np.multiply(eqdistr, z), axis = 2), 0, mwpm_distr, axis=1)
 
 def STDC_droplet(input_data_tuple):
     # All unique chains will be saved in samples

@@ -88,7 +88,7 @@ def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**
             init_code.qubit_matrix, _ = init_code.apply_random_logical()
             init_code.qubit_matrix = init_code.apply_stabilizers_uniform() # fix so all uses these
 
-
+        #print(init_code.qubit_matrix)
         df_eq_distr = single_temp(init_code, params['p'], steps = params['steps'], mwpm_start = params['mwpm_start'])
         df_eq_distr7 = np.array(df_eq_distr)
 
@@ -132,7 +132,7 @@ def generate(file_path, params, timeout, max_capacity=10**4, nbr_datapoints=10**
         # Every x iteration adds data to data file from temporary list
         # and clears temporary list
 
-        if (i + 1) % 100 == 0:
+        if (i + 1) % 1000 == 0:
             df = df.append(df_list, ignore_index = True)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
@@ -155,7 +155,7 @@ def main():
     # All paramteters for data generation is set here,
     # some of which may be irrelevant depending on the choice of others
     t_start = time.time()
-    nbr_datapoints = 1
+    nbr_datapoints = 100
 
     mwpm_start = True
 
