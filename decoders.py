@@ -22,7 +22,7 @@ import random as rand
 # Original MCMC Parallel tempering method as descibed in high threshold paper
 # Parameters also adapted from that paper.
 
-NUM_POINTS = 10
+NUM_POINTS = 20
 
 #@profile
 def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=50000000, iters=5, conv_criteria=None, mwpm_start = False):
@@ -99,7 +99,7 @@ def PTEQ(init_code, p, Nc=None, SEQ=2, TOPS=10, tops_burn=2, eps=0.1, steps=5000
                     conv_start = ladder.tops0
             step = step+1
         if ladder.tops0 >= tops_burn:
-            mean_array[:, stages] = (np.divide(eq[since_burn], since_burn + 1) * 100).astype(np.uint8)
+            mean_array[:, stages] = np.divide(eq[since_burn], since_burn + 1) #fixed rounding issue
         else:
             #print(stages)
             mean_array[:, stages] = mwpm_distr #returns mwpm solution
@@ -258,8 +258,9 @@ def STDC(init_code, size, p_error, p_sampling, steps=20000, mwpm_start = False):
     # Retrun normalized eq_distr
     print(eqdistr.shape)
     z = np.exp(-beta*np.arange(lengths))
-
-    return np.insert(np.sum(np.multiply(eqdistr, z), axis = 2), 0, mwpm_distr, axis=1)
+    result = np.insert(np.sum(np.multiply(eqdistr, z), axis = 2), 0, mwpm_distr, axis=1)
+    #print(eqdistr[-1, -1, :])
+    return result
 
 def STDC_droplet(input_data_tuple):
     # All unique chains will be saved in samples
