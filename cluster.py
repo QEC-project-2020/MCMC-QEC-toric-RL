@@ -65,7 +65,7 @@ def plot_Nobs():
             X = np.arange(maxlen)
             Y = np.zeros((maxlen))
 
-            for i in tqdm(range(avg_num)):
+            for i in range(avg_num):
                 #print('Syndrom nr', i + 1, 'of', avg_num)
                 init_code = Planar_code(size)
                 init_code.generate_random_error(p_err)
