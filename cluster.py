@@ -58,7 +58,7 @@ def plot_Nobs():
             #print(f'P_err {p_err}')
             beta = -np.log((p_err / 3) / (1 - p_err))
 
-            avg_num = 50
+            avg_num = 5
 
             maxlen = 60
 
@@ -74,8 +74,8 @@ def plot_Nobs():
                 # burn-in
 
                 # for d = 45, s ~ 20000
-                Nobs_n = STDC_Nall_n(init_code, p_err, p_err, steps=20000)
-                Nobs_n = STDC_Nall_n(init_code, p_err, p_err, steps=2000000)
+                Nobs_n = STDC_Nall_n(init_code, p_err, p_err, steps=200)
+                Nobs_n = STDC_Nall_n(init_code, p_err, p_err, steps=2000)
 
                 ## check for burn-in?
 
@@ -110,7 +110,7 @@ def plot_Nobs():
             Y_data = np.log((Y/Y[0])*np.exp(beta*X))
 
             
-            print('attempting save')
+            print('attempting save', flush=True)
             np.save('testX.np', X)
             np.save('testY.np', Y_data)
 
