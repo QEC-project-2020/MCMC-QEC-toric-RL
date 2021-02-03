@@ -9,6 +9,9 @@ import pandas as pd
 import time
 import matplotlib.pyplot as plt
 
+from mpl_toolkits.mplot3d import Axes3D
+
+
 def plot_Nobs():
     # size = 9
     # p = 0.1
