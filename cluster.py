@@ -53,7 +53,7 @@ def plot_Nobs():
     Y_d = [[],[],[]]
 
     sizes = [5, 7, 9, 13, 15, 19, 25, 35, 41, 45]
-    avg_num = 5
+    avg_num = 250
 
     maxlen = 60
     X_data_all = np.zeros((len(sizes), maxlen))
@@ -71,6 +71,8 @@ def plot_Nobs():
             Y = np.zeros((maxlen))
 
             for i in range(avg_num):
+                if i % 10 == 0:
+                    print('now at avg nr', i, flush=True)
                 #print('Syndrom nr', i + 1, 'of', avg_num)
                 init_code = Planar_code(size)
                 init_code.generate_random_error(p_err)
@@ -79,8 +81,8 @@ def plot_Nobs():
                 # burn-in
 
                 # for d = 45, s ~ 20000
-                Nobs_n = STDC_Nall_n(init_code, p_err, p_err, steps=200)
-                Nobs_n = STDC_Nall_n(init_code, p_err, p_err, steps=2000)
+                Nobs_n = STDC_Nall_n(init_code, p_err, p_err, steps=20000)
+                Nobs_n = STDC_Nall_n(init_code, p_err, p_err, steps=2000000)
 
                 ## check for burn-in?
 
