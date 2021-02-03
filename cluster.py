@@ -9,8 +9,7 @@ import pandas as pd
 import time
 import matplotlib.pyplot as plt
 
-from mpl_toolkits.mplot3d import Axes3D
-
+import matplotlib.ticker as ticker
 
 def plot_Nobs():
     # size = 9
