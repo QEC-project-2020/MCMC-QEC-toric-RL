@@ -56,8 +56,8 @@ def plot_Nobs():
     avg_num = 5
 
     maxlen = 60
-    X_data_all = np.zeros((len(sizes, maxlen)))
-    Y_data_all = np.zeros((len(sizes, maxlen)))
+    X_data_all = np.zeros((len(sizes), maxlen))
+    Y_data_all = np.zeros((len(sizes), maxlen))
 
     for size_nr, size in enumerate(sizes):   
         #print(f'\nSize {size}')
