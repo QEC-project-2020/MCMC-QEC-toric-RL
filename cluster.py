@@ -109,6 +109,11 @@ def plot_Nobs():
 
             Y_data = np.log((Y/Y[0])*np.exp(beta*X))
 
+            
+            print('attempting save')
+            np.save('testX.np', X)
+            np.save('testY.np', Y_data)
+
             lo = int(filled_len/3*2)
             hi = filled_len
 
