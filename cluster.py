@@ -52,15 +52,20 @@ def plot_Nobs():
     X_d = []
     Y_d = [[],[],[]]
 
-    for size_nr, size in enumerate([5, 7, 9, 13, 15, 19, 25, 35, 41, 45]):   
+    sizes = [5, 7, 9, 13, 15, 19, 25, 35, 41, 45]
+    avg_num = 5
+
+    maxlen = 60
+    X_data_all = np.zeros((len(sizes, maxlen)))
+    Y_data_all = np.zeros((len(sizes, maxlen)))
+
+    for size_nr, size in enumerate(sizes):   
         #print(f'\nSize {size}')
         for p_nr, p_err in enumerate([0.05]):
             #print(f'P_err {p_err}')
             beta = -np.log((p_err / 3) / (1 - p_err))
 
-            avg_num = 5
-
-            maxlen = 60
+            
 
             X = np.arange(maxlen)
             Y = np.zeros((maxlen))
@@ -109,10 +114,11 @@ def plot_Nobs():
 
             Y_data = np.log((Y/Y[0])*np.exp(beta*X))
 
-            
+            X_data_all[size_nr, :] = X
+            Y_data_all[size_nr, :] = Y_data
             print('attempting save', flush=True)
-            np.save('testX.np', X)
-            np.save('testY.np', Y_data)
+            np.save('dataX', X_data_all)
+            np.save('dataY', Y_data_all)
 
             lo = int(filled_len/3*2)
             hi = filled_len
