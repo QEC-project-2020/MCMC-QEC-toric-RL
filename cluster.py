@@ -52,16 +52,16 @@ def plot_Nobs():
     X_d = []
     Y_d = [[],[],[]]
 
-    sizes = [5, 7, 9, 13, 15, 19, 25, 35, 41, 45]
-    avg_num = 250
+    sizes = [5, 7, 9, 13, 15, 19, 25, 31, 35, 41, 45]
+    avg_num = 500
 
-    maxlen = 60
+    maxlen = 200
     X_data_all = np.zeros((len(sizes), maxlen))
     Y_data_all = np.zeros((len(sizes), maxlen))
 
     for size_nr, size in enumerate(sizes):   
         #print(f'\nSize {size}')
-        for p_nr, p_err in enumerate([0.05]):
+        for p_nr, p_err in enumerate([0.30]):
             #print(f'P_err {p_err}')
             beta = -np.log((p_err / 3) / (1 - p_err))
 
@@ -119,8 +119,8 @@ def plot_Nobs():
             X_data_all[size_nr, :] = X
             Y_data_all[size_nr, :] = Y_data
             print('attempting save', flush=True)
-            np.save('dataX', X_data_all)
-            np.save('dataY', Y_data_all)
+            np.save('dataX30_500', X_data_all)
+            np.save('dataY30_500', Y_data_all)
 
             lo = int(filled_len/3*2)
             hi = filled_len
@@ -170,7 +170,7 @@ def plot_Nobs():
                 print(np.polyfit(np.log(X_d), Y_d[0], 1))
                 #ax.set_ylabel('Chain length (0 at shortest)')
         
-            plt.savefig(f'plots/N_n_p005.pdf', bbox_inches='tight')
+            plt.savefig(f'plots/N_n_30_500.pdf', bbox_inches='tight')
 
 
 if __name__ == '__main__':
