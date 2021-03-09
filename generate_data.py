@@ -241,7 +241,7 @@ def generate(file_path, params, max_capacity=10**5, nbr_datapoints=10**6,
         # this contant needs to be sufficiently big that rsync has time
         # to sync files before update, maybe change this to be
         # time-based instead.
-        if (i + 1) % 500 == 0:
+        if (i + 1) % 100 == 0:
             df = df.append(df_list)
             df_list.clear()
             print('Intermediate save point reached (writing over)')
@@ -269,12 +269,12 @@ if __name__ == '__main__':
     job_id = os.getenv('SLURM_ARRAY_JOB_ID')
     array_id = os.getenv('SLURM_ARRAY_TASK_ID')
     local_dir = os.getenv('TMPDIR')
-    size = 11#int((int(array_id) % 50)/ 10)*2 + 17#int(5 + 2 * int(int(array_id) / 32 + 0.0001) + 0.0001)
+    size = int(3 + 2 * int(int(array_id) / 160 + 0.0001) + 0.0001)
     print('size:', size)
     params = {'code':           "planar",
               'method':         "STDC",
               'size':           size,
-              'p_error':        np.round(int(int(array_id)%32)*0.005+ 0.05, decimals=3),#np.round(int(array_id/50)*0.005+ 0.17, decimals=3),#np.round((0.05 + float(int(array_id) % 32) / 200), decimals=3),
+              'p_error':        np.round(int(int(array_id)%16)*0.01+ 0.05, decimals=2),#np.round(int(array_id/50)*0.005+ 0.17, decimals=3),#np.round((0.05 + float(int(array_id) % 32) / 200), decimals=3),
               'p_sampling':     0.25,
               'droplets':       1,
               'mwpm_init':      True,
@@ -286,15 +286,15 @@ if __name__ == '__main__':
               'TOPS':           10,
               'eps':            0.1}
     # Steps is a function of code size L
-    params.update({'steps': 935071})#int(5 * params['size'] ** 5)})
+    params.update({'steps': int(5 * params['size'] ** 5)})
 
     print('Nbr of steps to take if applicable:', params['steps'])
 
     # Build file path
-    file_path = os.path.join(local_dir, 'data_id_' + job_id + '_' + array_id +  '_STDC_PTEQ_stepcomp.xz')
+    file_path = os.path.join(local_dir, 'data_id_' + job_id + '_' + array_id + '_size_' + str(size) + '_STDC_results.xz')
 
     # Generate data
-    generate(file_path, params, nbr_datapoints=10000, fixed_errors=params['fixed_errors'])
+    generate(file_path, params, nbr_datapoints=200, fixed_errors=params['fixed_errors'])
 
     # View data file
     '''iterator = MCMCDataReader(file_path, params['size'])
