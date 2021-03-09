@@ -133,6 +133,12 @@ def generate(file_path, params, max_capacity=10**5, nbr_datapoints=10**6,
             if np.argmax(df_eq_distr) != eq_true:
                 print('Failed syndrom, total now:', failed_syndroms)
                 failed_syndroms += 1
+        elif params['method'] == "STDC_N_n":
+            df_eq_distr = STDC_Nall_n(init_code,
+                               params['p_error'],
+                               params['p_sampling'],
+                               steps=params['steps'])
+            df_eq_distr = np.array(df_eq_distr)
         elif params['method'] == "ST":
             df_eq_distr = single_temp(init_code,
                                       params['p_error'],
@@ -272,7 +278,7 @@ if __name__ == '__main__':
     size = int(3 + 2 * int(int(array_id) / 160 + 0.0001) + 0.0001)
     print('size:', size)
     params = {'code':           "planar",
-              'method':         "STDC",
+              'method':         "STDC_N_n",
               'size':           size,
               'p_error':        np.round(int(int(array_id)%16)*0.01+ 0.05, decimals=2),#np.round(int(array_id/50)*0.005+ 0.17, decimals=3),#np.round((0.05 + float(int(array_id) % 32) / 200), decimals=3),
               'p_sampling':     0.25,
@@ -294,7 +300,7 @@ if __name__ == '__main__':
     file_path = os.path.join(local_dir, 'data_id_' + job_id + '_' + array_id + '_size_' + str(size) + '_STDC_results.xz')
 
     # Generate data
-    generate(file_path, params, nbr_datapoints=200, fixed_errors=params['fixed_errors'])
+    generate(file_path, params, nbr_datapoints=2, fixed_errors=params['fixed_errors'])
 
     # View data file
     '''iterator = MCMCDataReader(file_path, params['size'])
