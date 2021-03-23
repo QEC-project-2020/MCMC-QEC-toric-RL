@@ -300,7 +300,7 @@ if __name__ == '__main__':
     file_path = os.path.join(local_dir, 'data_id_' + job_id + '_' + array_id + '_size_' + str(size) + '_STDC_results.xz')
 
     # Generate data
-    generate(file_path, params, nbr_datapoints=2, fixed_errors=params['fixed_errors'])
+    generate(file_path, params, nbr_datapoints=2000, fixed_errors=params['fixed_errors'])
 
     # View data file
     '''iterator = MCMCDataReader(file_path, params['size'])
