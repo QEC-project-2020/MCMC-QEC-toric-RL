@@ -61,7 +61,7 @@ def plot_Nobs():
 
     for size_nr, size in enumerate(sizes):   
         #print(f'\nSize {size}')
-        for p_nr, p_err in enumerate([0.30]):
+        for p_nr, p_err in enumerate([0.05]):
             #print(f'P_err {p_err}')
             beta = -np.log((p_err / 3) / (1 - p_err))
 
@@ -119,58 +119,58 @@ def plot_Nobs():
             X_data_all[size_nr, :] = X
             Y_data_all[size_nr, :] = Y_data
             print('attempting save', flush=True)
-            np.save('dataX30_500', X_data_all)
-            np.save('dataY30_500', Y_data_all)
+            np.save('dataX05_500', X_data_all)
+            np.save('dataY05_500', Y_data_all)
 
-            lo = int(filled_len/3*2)
-            hi = filled_len
+            #lo = int(filled_len/3*2)
+            #hi = filled_len
 
-            print('derivative between', lo, hi)
-            fit = np.polyfit(X[lo:hi], Y_data[lo:hi], 1)
+            #print('derivative between', lo, hi)
+            #fit = np.polyfit(X[lo:hi], Y_data[lo:hi], 1)
             
-            ax1.plot(X, Y_data, label=f'd={size}')
-            ax1.axvline(8)
-            ax1.axvline(14)
-            ax1.axvline(6)
-            ax1.grid(True)
-            ax1.set_xlabel('Chain length (0 at shortest)')
-            ax1.legend()
+            #ax1.plot(X, Y_data, label=f'd={size}')
+            #ax1.axvline(8)
+            #ax1.axvline(14)
+            #ax1.axvline(6)
+            #ax1.grid(True)
+            #ax1.set_xlabel('Chain length (0 at shortest)')
+            #ax1.legend()
 
-            ax2.plot(X, (Y), label=f'd={size}')
-            ax2.grid(True)
-            ax2.set_xlabel('Chain length (0 at shortest)')
-            ax2.legend()
+            #ax2.plot(X, (Y), label=f'd={size}')
+            #ax2.grid(True)
+            #ax2.set_xlabel('Chain length (0 at shortest)')
+            #ax2.legend()
 
-            X_d.append(size)
-            Y_d[0].append(fit[0])
-            Y_d[1].append((np.log((Y/Y[0])*np.exp(beta*X))[14] - np.log((Y/Y[0])*np.exp(beta*X))[8])/6)
-            Y_d[2].append(np.log((Y/Y[0])*np.exp(beta*X))[6]/6)
+            #X_d.append(size)
+            #Y_d[0].append(fit[0])
+            #Y_d[1].append((np.log((Y/Y[0])*np.exp(beta*X))[14] - np.log((Y/Y[0])*np.exp(beta*X))[8])/6)
+            #Y_d[2].append(np.log((Y/Y[0])*np.exp(beta*X))[6]/6)
 
-            ax3.clear()
-            ax3.plot(X_d, Y_d[0], label=f'linfit')
-            ax3.plot(X_d, Y_d[1], label=f'derivate 8-14')
-            ax3.plot(X_d, Y_d[2], label=f'offset={6}')
+            #ax3.clear()
+            #ax3.plot(X_d, Y_d[0], label=f'linfit')
+            #ax3.plot(X_d, Y_d[1], label=f'derivate 8-14')
+            #ax3.plot(X_d, Y_d[2], label=f'offset={6}')
             
-            s = np.linspace(1, 23)
-            ax3.plot(s, np.log(s), 'k')
-            ax3.grid(True)
-            ax3.set_xlabel('d')
-            ax3.legend()
-            print(X_d)
-            print(Y_d[1])
+            #s = np.linspace(1, 23)
+            #ax3.plot(s, np.log(s), 'k')
+            #ax3.grid(True)
+            #ax3.set_xlabel('d')
+            #ax3.legend()
+            #print(X_d)
+            #print(Y_d[1])
 
-            if size_nr >=2:
-                ax4.clear()
-                ax4.plot(np.log(X_d), Y_d[2], '*-', label=f'derivate 0-6')
-                ax4.plot(np.log(X_d), Y_d[0], '*-', label=f'linfit')
-                ax4.set_xlabel('log(d)')
-                ax4.set_ylabel('')
-                ax4.grid(True)
-                ax4.legend()
-                print(np.polyfit(np.log(X_d), Y_d[0], 1))
-                #ax.set_ylabel('Chain length (0 at shortest)')
-        
-            plt.savefig(f'plots/N_n_30_500.pdf', bbox_inches='tight')
+            #if size_nr >=2:
+            #    ax4.clear()
+            #    ax4.plot(np.log(X_d), Y_d[2], '*-', label=f'derivate 0-6')
+            #    ax4.plot(np.log(X_d), Y_d[0], '*-', label=f'linfit')
+            #    ax4.set_xlabel('log(d)')
+            #    ax4.set_ylabel('')
+            #    ax4.grid(True)
+            #    ax4.legend()
+            #    print(np.polyfit(np.log(X_d), Y_d[0], 1))
+            #    #ax.set_ylabel('Chain length (0 at shortest)')
+ 
+            #plt.savefig(f'plots/N_n_05_500.pdf', bbox_inches='tight')
 
 
 if __name__ == '__main__':
