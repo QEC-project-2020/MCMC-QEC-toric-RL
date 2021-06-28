@@ -21,20 +21,20 @@ from src.mwpm import *
 # This function generates training data with help of the MCMC algorithm
 def generate(params):
 
-    PATH = 'dicts/MWPMp05d7/'
+    PATH = 'dicts/unbal_test_set/'
 
-    pickle_defects = open(PATH+"/dict.defects","w")
+    pickle_defects = open(PATH+"dict.defects","w")
     pickle_defects.close()
 
     ####
-    pickle_eq_dist = open(PATH+"/dict.eq_distr","w")
+    pickle_eq_dist = open(PATH+"dict.eq_distr","w")
     pickle_eq_dist.close()
     
 
     # Loop to generate data points
     seen = set()
     found_unique = [0,0,0,0]
-    while min(found_unique) < 10000:
+    while min(found_unique) < 1000:
 
         # Initiate code
         init_code = Planar_code(params['size'])
