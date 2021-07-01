@@ -21,7 +21,7 @@ from src.mwpm import *
 # This function generates training data with help of the MCMC algorithm
 def generate(params):
 
-    PATH = 'dicts/unbal_test_set/'
+    PATH = 'dicts/d7_bigV2/'
 
     pickle_defects = open(PATH+"dict.defects","w")
     pickle_defects.close()
@@ -34,7 +34,10 @@ def generate(params):
     # Loop to generate data points
     seen = set()
     found_unique = [0,0,0,0]
-    while min(found_unique) < 1000:
+
+    total = 15000
+
+    while min(found_unique) < total:
 
         # Initiate code
         init_code = Planar_code(params['size'])
@@ -57,6 +60,10 @@ def generate(params):
         df_eq_distr = np.zeros((4)).astype(np.uint8)
         df_eq_distr[choice] = 100
 
+        
+        if found_unique[choice] > total:
+            continue
+
         found_unique[choice] += 1
         print(found_unique)
 
@@ -72,6 +79,10 @@ def generate(params):
         pickle_defects.close()
 
 
+        ## USE STDC to get better guess
+        init_code = class_sorted_mwpm(init_code)
+        df_eq_distr = STDC(init_code, params['p_error'], params['p_sampling'], droplets=1, steps=5*params['size']**4)
+
         ####
         pickle_eq_dist = open(PATH+"dict.eq_distr","ab")
         pickle.dump(df_eq_distr,pickle_eq_dist)
@@ -82,9 +93,9 @@ def generate(params):
 
 if __name__ == '__main__':
     # Get job array id, working directory
-    job_id = os.getenv('SLURM_ARRAY_JOB_ID')
-    array_id = os.getenv('SLURM_ARRAY_TASK_ID')
-    local_dir = os.getenv('TMPDIR')
+    job_id = 0#os.getenv('SLURM_ARRAY_JOB_ID')
+    array_id =0# os.getenv('SLURM_ARRAY_TASK_ID')
+    local_dir = './temp'#os.getenv('TMPDIR')
 
     params = {'code': "xzzx",
             'method': "MWPM",
