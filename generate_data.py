@@ -1,4 +1,5 @@
 import copy
+from numba.core.types.npytypes import UnicodeCharSeq
 
 from numpy.lib.arraysetops import unique
 from decoders_biasednoise import PTEQ_biased, PTEQ_alpha
@@ -21,34 +22,47 @@ from src.mwpm import *
 # This function generates training data with help of the MCMC algorithm
 def generate(params):
 
-    PATH = 'dicts/d7_bigV2/'
+    PATH = 'dicts/d7_decode/'
 
     pickle_defects = open(PATH+"dict.defects","w")
     pickle_defects.close()
 
     ####
-    pickle_eq_dist = open(PATH+"dict.eq_distr","w")
+    pickle_eq_dist = open(PATH+"dict.stdc_eq_distr","w")
     pickle_eq_dist.close()
+
+    ####
+    pickle_qubitmatrix = open(PATH+"dict.qubitmatrix","w")
+    pickle_qubitmatrix.close()
+    ####
+    pickle_trueeq = open(PATH+"dict.trueeq","w")
+    pickle_trueeq.close()
     
 
     # Loop to generate data points
     seen = set()
     found_unique = [0,0,0,0]
+    found = 0
 
-    total = 15000
+    total = 100000
 
-    while min(found_unique) < total:
+    unique = False
+    balanced = False
+
+    while found < total:
+        print(found)
 
         # Initiate code
         init_code = Planar_code(params['size'])
         init_code.generate_random_error(params['p_error'])
 
         init_code.syndrom()
-        h = hash(init_code.plaquette_defects.tostring() + init_code.vertex_defects.tostring())
-        if h in seen:
-            continue
-        else:
-            seen.add(h)
+        if unique:
+            h = hash(init_code.plaquette_defects.tostring() + init_code.vertex_defects.tostring())
+            if h in seen:
+                continue
+            else:
+                seen.add(h)
 
         # Flatten initial qubit matrix to store in dataframe
         df_qubit = copy.deepcopy(init_code.qubit_matrix)
@@ -56,16 +70,17 @@ def generate(params):
 
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
-        choice = regular_mwpm(copy.deepcopy(init_code))
-        df_eq_distr = np.zeros((4)).astype(np.uint8)
-        df_eq_distr[choice] = 100
+        if balanced:
+            choice = regular_mwpm(copy.deepcopy(init_code))
+            df_eq_distr = np.zeros((4)).astype(np.uint8)
+            df_eq_distr[choice] = 100
 
-        
-        if found_unique[choice] > total:
-            continue
+            if found_unique[choice] > total:
+                continue
 
-        found_unique[choice] += 1
-        print(found_unique)
+            found_unique[choice] += 1
+            print(found_unique)
+        found += 1
 
 
         vertex_defects = init_code.vertex_defects
@@ -78,15 +93,24 @@ def generate(params):
         pickle.dump((vertex_defects,plaquette_defects),pickle_defects)
         pickle_defects.close()
 
+        pickle_qubitmatrix = open(PATH+"dict.qubitmatrix","ab")
+        pickle.dump(df_qubit,pickle_qubitmatrix)
+        pickle_qubitmatrix.close()
+
 
         ## USE STDC to get better guess
         init_code = class_sorted_mwpm(init_code)
         df_eq_distr = STDC(init_code, params['p_error'], params['p_sampling'], droplets=1, steps=5*params['size']**4)
 
         ####
-        pickle_eq_dist = open(PATH+"dict.eq_distr","ab")
+        pickle_eq_dist = open(PATH+"dict.stdc_eq_distr","ab")
         pickle.dump(df_eq_distr,pickle_eq_dist)
         pickle_eq_dist.close()
+        #####
+
+        pickle_trueeq = open(PATH+"dict.trueeq","ab")
+        pickle.dump(eq_true,pickle_trueeq)
+        pickle_trueeq.close()
         #####
 
 
