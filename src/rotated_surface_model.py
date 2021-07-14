@@ -22,7 +22,22 @@ class RotSurCode():
     #     pauli_error = np.random.randint(3, size=(self.system_size, self.system_size)) + 1
     #     self.qubit_matrix[:, :] = np.multiply(qubits, pauli_error)
 
-    def generate_random_error(self, p_error, eta):  # Z-biased noise
+    def generate_random_error(self, p_x, p_y, p_z):
+        size = self.system_size
+        for i in range(size):
+            for j in range(size):
+                q = 0
+                r = rand.random()
+                if r < p_z:
+                    q = 3
+                if p_z < r < (p_z + p_x):
+                    q = 1
+                if (p_z + p_x) < r < (p_z + p_x + p_y):
+                    q = 2
+                self.qubit_matrix[i, j] = q
+        self.syndrome()
+    
+    def generate_zbiased_error(self, p_error, eta):  # Z-biased noise
         eta = eta
         p = p_error
         p_z = p * eta / (eta + 1)
@@ -65,6 +80,12 @@ class RotSurCode():
         self.qubit_matrix[2, 2] = 1
         self.qubit_matrix[1, 0] = 1
         self.syndrome()
+
+    def chain_lengths(self):
+        nx = np.count_nonzero(self.qubit_matrix[:, :] == 1)
+        ny = np.count_nonzero(self.qubit_matrix[:, :] == 2)
+        nz = np.count_nonzero(self.qubit_matrix[:, :] == 3)
+        return nx, ny, nz
 
     def count_errors(self):
         return _count_errors(self.qubit_matrix)
@@ -236,8 +257,8 @@ def _apply_logical(qubit_matrix, operator: int, X_pos=0, Z_pos=0):
         return result_qubit_matrix, 0
     size = qubit_matrix.shape[0]
 
-    do_X = (operator == 1 or operator == 2)
-    do_Z = (operator == 3 or operator == 2)
+    do_X = (operator == 1 or operator == 3)
+    do_Z = (operator == 2 or operator == 3)
 
     if do_X:
         for i in range(size):

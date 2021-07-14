@@ -14,6 +14,7 @@ import pandas as pd
 from src.toric_model import Toric_code
 from src.planar_model import Planar_code
 from src.xzzx_model import xzzx_code
+from src.rotated_surface_model import RotSurCode
 from src.mcmc import *
 from decoders import *
 from src.mwpm import *
@@ -44,21 +45,21 @@ def generate(params):
     found_unique = [0,0,0,0]
     found = 0
 
-    total = 100000
+    total = 60
 
-    unique = False
-    balanced = False
+    unique = True
+    balanced = True
 
     while found < total:
         print(found)
 
         # Initiate code
-        init_code = Planar_code(params['size'])
-        init_code.generate_random_error(params['p_error'])
+        init_code = RotSurCode(params['size'])
+        init_code.generate_random_error(params['p_error']/3, params['p_error']/3, params['p_error']/3)
 
-        init_code.syndrom()
+        init_code.syndrome()
         if unique:
-            h = hash(init_code.plaquette_defects.tostring() + init_code.vertex_defects.tostring())
+            h = hash(init_code.plaquette_defects.tostring())
             if h in seen:
                 continue
             else:
@@ -71,26 +72,26 @@ def generate(params):
 
         # Generate data for DataFrame storage  OBS now using full bincount, change this
         if balanced:
-            choice = regular_mwpm(copy.deepcopy(init_code))
-            df_eq_distr = np.zeros((4)).astype(np.uint8)
-            df_eq_distr[choice] = 100
+            #choice = regular_mwpm(copy.deepcopy(init_code))
+            #df_eq_distr = np.zeros((4)).astype(np.uint8)
+            #df_eq_distr[choice] = 100
 
-            if found_unique[choice] > total:
+            if found_unique[eq_true] > total/4:
                 continue
 
-            found_unique[choice] += 1
+            found_unique[eq_true] += 1
             print(found_unique)
         found += 1
 
 
-        vertex_defects = init_code.vertex_defects
+        #vertex_defects = init_code.vertex_defects
         plaquette_defects = init_code.plaquette_defects
         
-        vertex_defects = 1*vertex_defects
+        #vertex_defects = 1*vertex_defects
         plaquette_defects = 1*plaquette_defects
         
         pickle_defects = open(PATH+"dict.defects","ab")
-        pickle.dump((vertex_defects,plaquette_defects),pickle_defects)
+        pickle.dump((plaquette_defects),pickle_defects)
         pickle_defects.close()
 
         pickle_qubitmatrix = open(PATH+"dict.qubitmatrix","ab")
@@ -99,7 +100,7 @@ def generate(params):
 
 
         ## USE STDC to get better guess
-        init_code = class_sorted_mwpm(init_code)
+        #init_code = class_sorted_mwpm(init_code)
         df_eq_distr = STDC(init_code, params['p_error'], params['p_sampling'], droplets=1, steps=5*params['size']**4)
 
         ####
