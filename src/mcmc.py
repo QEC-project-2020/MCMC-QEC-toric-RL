@@ -3,7 +3,7 @@ import random as rand
 import copy
 
 from numba import jit, njit
-from .planar_model import _apply_random_stabilizer, _count_errors_xyz  # ???
+from .rotated_surface_model import _apply_random_stabilizer#, _count_errors_xyz  # ???
 import pandas as pd
 
 

@@ -19,11 +19,15 @@ from src.mcmc import *
 from decoders import *
 from src.mwpm import *
 
+import warnings
+
 
 # This function generates training data with help of the MCMC algorithm
 def generate(params):
+    
+    warnings.filterwarnings("ignore")
 
-    PATH = 'dicts/d7_decode/'
+    PATH = 'dicts/d7_rot/'
 
     pickle_defects = open(PATH+"dict.defects","w")
     pickle_defects.close()
@@ -45,13 +49,12 @@ def generate(params):
     found_unique = [0,0,0,0]
     found = 0
 
-    total = 60
+    total = 60000
 
     unique = True
     balanced = True
 
     while found < total:
-        print(found)
 
         # Initiate code
         init_code = RotSurCode(params['size'])
@@ -76,7 +79,7 @@ def generate(params):
             #df_eq_distr = np.zeros((4)).astype(np.uint8)
             #df_eq_distr[choice] = 100
 
-            if found_unique[eq_true] > total/4:
+            if found_unique[eq_true] >= total/4:
                 continue
 
             found_unique[eq_true] += 1

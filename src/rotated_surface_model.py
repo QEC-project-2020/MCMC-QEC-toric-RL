@@ -23,18 +23,35 @@ class RotSurCode():
     #     self.qubit_matrix[:, :] = np.multiply(qubits, pauli_error)
 
     def generate_random_error(self, p_x, p_y, p_z):
-        size = self.system_size
-        for i in range(size):
-            for j in range(size):
-                q = 0
-                r = rand.random()
-                if r < p_z:
-                    q = 3
-                if p_z < r < (p_z + p_x):
-                    q = 1
-                if (p_z + p_x) < r < (p_z + p_x + p_y):
-                    q = 2
-                self.qubit_matrix[i, j] = q
+        p_xyz = np.array([p_x, p_y, p_z])
+        # size = self.system_size
+        # for i in range(size):
+        #     for j in range(size):
+        #         q = 0
+        #         r = rand.random()
+        #         if r < p_z:
+        #             q = 3
+        #         if p_z < r < (p_z + p_x):
+        #             q = 1
+        #         if (p_z + p_x) < r < (p_z + p_x + p_y):
+        #             q = 2
+        #         self.qubit_matrix[i, j] = q
+        # self.syndrome()
+        pauli_errors = np.random.uniform(0, 1, size=(self.system_size, self.system_size))
+        # remember where to put zeros so they don't get overwritten
+        no_error = pauli_errors > p_xyz.sum()
+        # distribute x, y, z errors by dividing [0, 1] into intervals and comparing to random number
+        # x errors
+        pauli_errors[pauli_errors < p_xyz[0]] = 1
+        # y errors
+        pauli_errors[pauli_errors < p_xyz[0:2].sum()] = 2
+        # z errors
+        pauli_errors[pauli_errors < p_xyz.sum()] = 3
+        # distribute zeros
+        pauli_errors[no_error] = 0
+        self.qubit_matrix[:, :] = pauli_errors
+        #self.qubit_matrix[1, -1, :] = 0
+        #self.qubit_matrix[1, :, -1] = 0
         self.syndrome()
     
     def generate_zbiased_error(self, p_error, eta):  # Z-biased noise
@@ -104,6 +121,11 @@ class RotSurCode():
 
     def define_equivalence_class(self):
         return _define_equivalence_class(self.qubit_matrix)
+    
+    def to_class(self, new_class):
+        current_class = self.define_equivalence_class()
+        op = new_class ^ current_class
+        return self.apply_logical(op)[0]
 
     def syndrome(self):
         size = self.qubit_matrix.shape[1]
@@ -128,7 +150,7 @@ class RotSurCode():
                     row = 2 * i + 1
                     col = 0
                 self.plaquette_defects[row, col] = _find_syndrome(qubit_matrix, i, j, 3)
-        self.plot()
+        #self.plot()
 
     def plot(self):
         system_size = self.system_size

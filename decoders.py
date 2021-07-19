@@ -242,8 +242,8 @@ def STDC_droplet(chain, steps, randomize, conv_mult):
     shortest = 2 * chain.code.system_size ** 2
 
     # Start in high energy state
-    if randomize:
-        chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
+    #if randomize:
+    #    chain.code.qubit_matrix = chain.code.apply_stabilizers_uniform()
 
     # Do the metropolis steps and add to samples if new chains are found
     for step in range(int(steps)):
